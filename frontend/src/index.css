@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  background-color: #f1f5f9;
+  color: #1e293b;
+}
+
+/* AG Grid theme overrides */
+.ag-theme-alpine .ag-row-hover {
+  background-color: #eff6ff !important;
+}
+
+.ag-theme-alpine .ag-row-selected {
+  background-color: #dbeafe !important;
+}
