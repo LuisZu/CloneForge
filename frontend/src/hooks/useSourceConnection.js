@@ -45,5 +45,21 @@ export function useSourceConnection() {
     }
   }
 
-  return { connect, loading };
+  async function refresh() {
+    if (!useAppStore.getState().sourceConnected) return;
+    setObjectsLoading(true);
+    setObjectsError(null);
+    try {
+      const objs = await fetchObjects(sourceConfig);
+      setObjects(objs);
+      showToast('Información actualizada', 'success');
+    } catch (err) {
+      setObjectsError(err.response?.data?.error || err.message);
+      showToast('Error al refrescar los objetos', 'error');
+    } finally {
+      setObjectsLoading(false);
+    }
+  }
+
+  return { connect, refresh, loading };
 }

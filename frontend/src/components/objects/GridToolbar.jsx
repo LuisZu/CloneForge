@@ -1,4 +1,4 @@
-import { Search, Copy, Loader2 } from 'lucide-react';
+import { Search, Copy, Loader2, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 
 const TYPE_FILTERS = ['SP', 'VISTA', 'TABLA', 'FUNCION', 'TRIGGER'];
@@ -17,6 +17,8 @@ export default function GridToolbar({
   onClone,
   cloneLoading,
   destConnected,
+  onRefresh,
+  refreshLoading,
 }) {
   function toggleType(type) {
     if (typeFilter.includes(type)) {
@@ -61,6 +63,22 @@ export default function GridToolbar({
             className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        {/* Refresh button */}
+        <button
+          onClick={onRefresh}
+          disabled={refreshLoading || !onRefresh}
+          title="Refrescar información"
+          className={clsx(
+            'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors shrink-0',
+            refreshLoading || !onRefresh
+              ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+              : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600'
+          )}
+        >
+          <RefreshCw size={14} className={refreshLoading ? 'animate-spin' : ''} />
+          {refreshLoading ? 'Refrescando...' : 'Refrescar Información'}
+        </button>
 
         {/* Type filters */}
         <div className="flex items-center gap-1.5 flex-wrap">

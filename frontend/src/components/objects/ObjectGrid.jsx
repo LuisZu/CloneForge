@@ -7,6 +7,7 @@ import useAppStore from '../../store/appStore';
 import TypeBadge from './TypeBadge';
 import GridToolbar from './GridToolbar';
 import { useCloneOperation } from '../../hooks/useCloneOperation';
+import { useSourceConnection } from '../../hooks/useSourceConnection';
 
 const TYPE_ALL = ['SP', 'VISTA', 'TABLA', 'FUNCION', 'TRIGGER'];
 
@@ -38,6 +39,7 @@ export default function ObjectGrid() {
   } = useAppStore();
 
   const { clone } = useCloneOperation();
+  const { refresh, loading: refreshLoading } = useSourceConnection();
   const selectedCount = useAppStore((s) => s.selectedObjects.length);
 
   // Derive unique schemas from loaded objects, sorted alphabetically
@@ -166,6 +168,8 @@ export default function ObjectGrid() {
         onClone={clone}
         cloneLoading={cloneLoading}
         destConnected={destConnected}
+        onRefresh={refresh}
+        refreshLoading={refreshLoading}
       />
 
       <div className="flex-1 ag-theme-alpine" style={{ minHeight: 0 }}>
