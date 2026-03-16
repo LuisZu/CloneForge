@@ -41,10 +41,10 @@ async function executeScripts(connConfig, scripts, destSchema) {
 
     for (const script of sorted) {
       try {
-        const ddl = destSchema
+        const ddl = (destSchema
           ? rewriteSchema(script.ddl, script.schema, destSchema)
-          : script.ddl;
-        await pool.request().batch(ddl);
+          : script.ddl).trim();
+        await pool.request().query(ddl);
         results.push({
           id: script.id,
           name: script.name,

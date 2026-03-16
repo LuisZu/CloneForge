@@ -72,34 +72,22 @@ async function getDDL(connConfig, schema, name, type) {
       );
     }
 
-    ddl = makeIdempotent(ddl, type);
+    ddl = makeIdempotent(ddl);
     return ddl;
   });
 }
 
-/** Rewrite CREATE X → CREATE OR ALTER X for SP/View/Function */
-function makeIdempotent(ddl, type) {
-  const patterns = [
-    [/\bCREATE\s+OR\s+ALTER\s+PROCEDURE\b/gi, 'CREATE OR ALTER PROCEDURE'],
-    [/\bCREATE\s+PROCEDURE\b/gi, 'CREATE OR ALTER PROCEDURE'],
-    [/\bCREATE\s+OR\s+ALTER\s+VIEW\b/gi, 'CREATE OR ALTER VIEW'],
-    [/\bCREATE\s+VIEW\b/gi, 'CREATE OR ALTER VIEW'],
-    [/\bCREATE\s+OR\s+ALTER\s+FUNCTION\b/gi, 'CREATE OR ALTER FUNCTION'],
-    [/\bCREATE\s+FUNCTION\b/gi, 'CREATE OR ALTER FUNCTION'],
-    [/\bCREATE\s+OR\s+ALTER\s+TRIGGER\b/gi, 'CREATE OR ALTER TRIGGER'],
-    [/\bCREATE\s+TRIGGER\b/gi, 'CREATE OR ALTER TRIGGER'],
-  ];
-  let result = ddl;
-  for (const [pattern, replacement] of patterns) {
-    result = result.replace(pattern, replacement);
-    break; // Only apply the first matching pattern for idempotency
-  }
-  // Re-apply all to be safe
-  result = ddl;
-  for (const [pattern, replacement] of patterns) {
-    result = result.replace(pattern, replacement);
-  }
-  return result;
+/** Rewrite CREATE X → CREATE OR ALTER X for SP/View/Function/Trigger */
+function makeIdempotent(ddl) {
+  return ddl
+    .replace(/\bCREATE\s+OR\s+ALTER\s+PROCEDURE\b/gi, 'CREATE OR ALTER PROCEDURE')
+    .replace(/\bCREATE\s+PROCEDURE\b/gi,              'CREATE OR ALTER PROCEDURE')
+    .replace(/\bCREATE\s+OR\s+ALTER\s+VIEW\b/gi,     'CREATE OR ALTER VIEW')
+    .replace(/\bCREATE\s+VIEW\b/gi,                  'CREATE OR ALTER VIEW')
+    .replace(/\bCREATE\s+OR\s+ALTER\s+FUNCTION\b/gi, 'CREATE OR ALTER FUNCTION')
+    .replace(/\bCREATE\s+FUNCTION\b/gi,              'CREATE OR ALTER FUNCTION')
+    .replace(/\bCREATE\s+OR\s+ALTER\s+TRIGGER\b/gi,  'CREATE OR ALTER TRIGGER')
+    .replace(/\bCREATE\s+TRIGGER\b/gi,               'CREATE OR ALTER TRIGGER');
 }
 
 async function buildTableDDL(pool, schema, name) {
