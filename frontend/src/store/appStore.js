@@ -41,6 +41,10 @@ const useAppStore = create((set) => ({
   selectedObjects: [],
   setSelectedObjects: (selectedObjects) => set({ selectedObjects }),
 
+  // ── Clone options ─────────────────────────────────────────────────────────
+  includeData: false,
+  setIncludeData: (includeData) => set({ includeData }),
+
   // ── Destination schema override ───────────────────────────────────────────
   destSchema: '',
   setDestSchema: (destSchema) => set({ destSchema }),

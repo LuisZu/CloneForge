@@ -8,6 +8,7 @@ export function useCloneOperation() {
     sourceConfig,
     destConfig,
     destSchema,
+    includeData,
     selectedObjects,
     setCloneLoading,
     setCloneResults,
@@ -26,7 +27,8 @@ export function useCloneOperation() {
         const batch = selectedObjects.slice(i, i + BATCH_SIZE);
         const results = await Promise.allSettled(
           batch.map((obj) =>
-            fetchDDL(sourceConfig, obj).then((ddl) => ({ ...obj, ddl }))
+            fetchDDL(sourceConfig, obj, obj.type === 'TABLA' ? includeData : false)
+              .then((ddl) => ({ ...obj, ddl }))
           )
         );
         for (let j = 0; j < results.length; j++) {

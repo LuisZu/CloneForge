@@ -10,9 +10,7 @@ const TYPE_LABEL = {
 
 async function testConnection(connConfig) {
   return withPool(connConfig, async (pool) => {
-    const result = await pool.request().query(
-      "SELECT @@VERSION AS version"
-    );
+    const result = await pool.request().query('SELECT @@VERSION AS version');
     const raw = result.recordset[0].version || '';
     const match = raw.match(/Microsoft SQL Server[^\n]*/);
     return { connected: true, serverVersion: match ? match[0].trim() : raw.split('\n')[0].trim() };
@@ -54,10 +52,10 @@ async function getObjects(connConfig) {
   });
 }
 
-async function getDDL(connConfig, schema, name, type) {
+async function getDDL(connConfig, schema, name, type, includeData = false) {
   return withPool(connConfig, async (pool) => {
     if (type === 'TABLA') {
-      return buildTableDDL(pool, schema, name);
+      return buildTableDDL(pool, schema, name, includeData);
     }
 
     const result = await pool.request()
@@ -72,10 +70,11 @@ async function getDDL(connConfig, schema, name, type) {
       );
     }
 
-    ddl = makeIdempotent(ddl);
-    return ddl;
+    return makeIdempotent(ddl);
   });
 }
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 /** Rewrite CREATE X → CREATE OR ALTER X for SP/View/Function/Trigger */
 function makeIdempotent(ddl) {
@@ -90,11 +89,11 @@ function makeIdempotent(ddl) {
     .replace(/\bCREATE\s+TRIGGER\b/gi,               'CREATE OR ALTER TRIGGER');
 }
 
-async function buildTableDDL(pool, schema, name) {
-  // Get columns
+async function buildTableDDL(pool, schema, name, includeData) {
+  // ── 1. Columns ──────────────────────────────────────────────────────────────
   const colsResult = await pool.request()
     .input('schema', sql.NVarChar, schema)
-    .input('name', sql.NVarChar, name)
+    .input('name',   sql.NVarChar, name)
     .query(`
       SELECT
         c.name                  AS column_name,
@@ -111,47 +110,94 @@ async function buildTableDDL(pool, schema, name) {
         c.column_id
       FROM sys.columns c
       INNER JOIN sys.types tp ON c.user_type_id = tp.user_type_id
-      LEFT JOIN sys.identity_columns ic
-        ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-      LEFT JOIN sys.default_constraints dc
-        ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
-      LEFT JOIN sys.computed_columns cc
-        ON cc.object_id = c.object_id AND cc.column_id = c.column_id
+      LEFT  JOIN sys.identity_columns ic
+             ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+      LEFT  JOIN sys.default_constraints dc
+             ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
+      LEFT  JOIN sys.computed_columns cc
+             ON cc.object_id = c.object_id AND cc.column_id = c.column_id
       WHERE c.object_id = OBJECT_ID(@schema + '.' + @name)
       ORDER BY c.column_id
     `);
 
-  // Get primary key
+  // ── 2. Primary Key ──────────────────────────────────────────────────────────
   const pkResult = await pool.request()
     .input('schema', sql.NVarChar, schema)
-    .input('name', sql.NVarChar, name)
+    .input('name',   sql.NVarChar, name)
     .query(`
-      SELECT
-        kc.name       AS constraint_name,
-        c.name        AS column_name,
-        ic.key_ordinal,
-        ic.is_descending_key
+      SELECT kc.name AS constraint_name, c.name AS column_name,
+             ic.key_ordinal, ic.is_descending_key
       FROM sys.key_constraints kc
       INNER JOIN sys.index_columns ic
-        ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+             ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
       INNER JOIN sys.columns c
-        ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+             ON c.object_id = ic.object_id AND c.column_id = ic.column_id
       WHERE kc.type = 'PK'
         AND kc.parent_object_id = OBJECT_ID(@schema + '.' + @name)
       ORDER BY ic.key_ordinal
     `);
 
-  const cols = colsResult.recordset;
-  const pkRows = pkResult.recordset;
+  // ── 3. Indexes (non-PK, non-unique-constraint) ──────────────────────────────
+  const idxResult = await pool.request()
+    .input('schema', sql.NVarChar, schema)
+    .input('name',   sql.NVarChar, name)
+    .query(`
+      SELECT i.name            AS index_name,
+             i.type_desc,
+             i.is_unique,
+             c.name            AS column_name,
+             ic.key_ordinal,
+             ic.is_descending_key,
+             ic.is_included_column
+      FROM sys.indexes i
+      INNER JOIN sys.index_columns ic
+             ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+      INNER JOIN sys.columns c
+             ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+      WHERE i.object_id       = OBJECT_ID(@schema + '.' + @name)
+        AND i.is_primary_key  = 0
+        AND i.is_unique_constraint = 0
+        AND i.type            > 0
+      ORDER BY i.name, ic.key_ordinal
+    `);
 
+  // ── 4. Foreign Keys ─────────────────────────────────────────────────────────
+  const fkResult = await pool.request()
+    .input('schema', sql.NVarChar, schema)
+    .input('name',   sql.NVarChar, name)
+    .query(`
+      SELECT fk.name                                        AS fk_name,
+             c.name                                         AS column_name,
+             OBJECT_SCHEMA_NAME(fk.referenced_object_id)   AS ref_schema,
+             OBJECT_NAME(fk.referenced_object_id)          AS ref_table,
+             rc.name                                        AS ref_column,
+             fkc.constraint_column_id,
+             fk.delete_referential_action_desc,
+             fk.update_referential_action_desc
+      FROM sys.foreign_keys fk
+      INNER JOIN sys.foreign_key_columns fkc
+             ON fkc.constraint_object_id = fk.object_id
+      INNER JOIN sys.columns c
+             ON c.object_id = fk.parent_object_id AND c.column_id = fkc.parent_column_id
+      INNER JOIN sys.columns rc
+             ON rc.object_id = fk.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+      WHERE fk.parent_object_id = OBJECT_ID(@schema + '.' + @name)
+      ORDER BY fk.name, fkc.constraint_column_id
+    `);
+
+  const cols   = colsResult.recordset;
+  const pkRows = pkResult.recordset;
+  const idxRows = idxResult.recordset;
+  const fkRows  = fkResult.recordset;
+
+  const hasIdentity = cols.some((c) => c.is_identity);
+
+  // ── Build CREATE TABLE ──────────────────────────────────────────────────────
   const colDefs = cols.map((col) => {
     if (col.computed_definition) {
       return `    [${col.column_name}] AS ${col.computed_definition}`;
     }
-
-    let typeDef = formatType(col);
-    let def = `    [${col.column_name}] ${typeDef}`;
-
+    let def = `    [${col.column_name}] ${formatType(col)}`;
     if (col.is_identity) {
       def += ` IDENTITY(${col.seed_value ?? 1},${col.increment_value ?? 1})`;
     }
@@ -169,16 +215,143 @@ async function buildTableDDL(pool, schema, name) {
     colDefs.push(`    CONSTRAINT [${pkRows[0].constraint_name}] PRIMARY KEY (${pkCols})`);
   }
 
-  const ddl =
-    `IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[${schema}].[${name}]') AND type = 'U')\n` +
-    `CREATE TABLE [${schema}].[${name}] (\n${colDefs.join(',\n')}\n)`;
+  const parts = [];
+  parts.push(
+    `-- ============================================================\n` +
+    `-- TABLA: [${schema}].[${name}]\n` +
+    `-- ============================================================\n` +
+    `IF NOT EXISTS (\n` +
+    `  SELECT 1 FROM sys.objects\n` +
+    `  WHERE object_id = OBJECT_ID(N'[${schema}].[${name}]') AND type = 'U'\n` +
+    `)\n` +
+    `CREATE TABLE [${schema}].[${name}] (\n${colDefs.join(',\n')}\n)`
+  );
 
-  return ddl;
+  // ── Indexes ─────────────────────────────────────────────────────────────────
+  if (idxRows.length > 0) {
+    // Group by index name
+    const indexMap = new Map();
+    for (const row of idxRows) {
+      if (!indexMap.has(row.index_name)) {
+        indexMap.set(row.index_name, { ...row, keycols: [], includedCols: [] });
+      }
+      const idx = indexMap.get(row.index_name);
+      if (row.is_included_column) {
+        idx.includedCols.push(row.column_name);
+      } else {
+        idx.keyols  = idx.keyols || [];
+        idx.keyCols = idx.keyCols || [];
+        idx.keyCols.push(`[${row.column_name}]${row.is_descending_key ? ' DESC' : ''}`);
+      }
+    }
+
+    for (const [idxName, idx] of indexMap) {
+      const unique = idx.is_unique ? 'UNIQUE ' : '';
+      const typeDesc = idx.type_desc === 'CLUSTERED' ? 'CLUSTERED ' : 'NONCLUSTERED ';
+      const keyCols = (idx.keyCols || []).join(', ');
+      let stmt =
+        `IF NOT EXISTS (\n` +
+        `  SELECT 1 FROM sys.indexes\n` +
+        `  WHERE object_id = OBJECT_ID(N'[${schema}].[${name}]') AND name = N'${idxName}'\n` +
+        `)\n` +
+        `CREATE ${unique}${typeDesc}INDEX [${idxName}]\n` +
+        `    ON [${schema}].[${name}] (${keyCols})`;
+      if (idx.includedCols.length > 0) {
+        stmt += `\n    INCLUDE (${idx.includedCols.map((c) => `[${c}]`).join(', ')})`;
+      }
+      parts.push(stmt);
+    }
+  }
+
+  // ── Foreign Keys ─────────────────────────────────────────────────────────────
+  if (fkRows.length > 0) {
+    // Group by FK name
+    const fkMap = new Map();
+    for (const row of fkRows) {
+      if (!fkMap.has(row.fk_name)) {
+        fkMap.set(row.fk_name, {
+          ...row,
+          parentCols: [],
+          refCols: [],
+        });
+      }
+      const fk = fkMap.get(row.fk_name);
+      fk.parentCols.push(`[${row.column_name}]`);
+      fk.refCols.push(`[${row.ref_column}]`);
+    }
+
+    for (const [fkName, fk] of fkMap) {
+      const delAction = formatRefAction(fk.delete_referential_action_desc);
+      const updAction = formatRefAction(fk.update_referential_action_desc);
+      const stmt =
+        `IF NOT EXISTS (\n` +
+        `  SELECT 1 FROM sys.foreign_keys WHERE name = N'${fkName}'\n` +
+        `)\n` +
+        `ALTER TABLE [${schema}].[${name}]\n` +
+        `    ADD CONSTRAINT [${fkName}]\n` +
+        `    FOREIGN KEY (${fk.parentCols.join(', ')})\n` +
+        `    REFERENCES [${fk.ref_schema}].[${fk.ref_table}] (${fk.refCols.join(', ')})` +
+        (delAction !== 'NO ACTION' ? `\n    ON DELETE ${delAction}` : '') +
+        (updAction !== 'NO ACTION' ? `\n    ON UPDATE ${updAction}` : '');
+      parts.push(stmt);
+    }
+  }
+
+  // ── Data (optional) ─────────────────────────────────────────────────────────
+  if (includeData) {
+    const dataStmts = await buildDataInserts(pool, schema, name, cols, hasIdentity);
+    if (dataStmts) parts.push(dataStmts);
+  }
+
+  return parts.join('\n\n');
+}
+
+function formatRefAction(desc) {
+  if (!desc || desc === 'NO_ACTION') return 'NO ACTION';
+  return desc.replace(/_/g, ' ');
+}
+
+async function buildDataInserts(pool, schema, name, colMeta, hasIdentity) {
+  const dataResult = await pool.request()
+    .query(`SELECT * FROM [${schema}].[${name}] WITH (NOLOCK)`);
+
+  if (dataResult.recordset.length === 0) return '';
+
+  const colNames = colMeta
+    .filter((c) => !c.computed_definition)
+    .map((c) => c.column_name);
+  const colList = colNames.map((c) => `[${c}]`).join(', ');
+
+  const lines = [];
+  lines.push(`-- DATA: ${dataResult.recordset.length} filas`);
+  if (hasIdentity) {
+    lines.push(`SET IDENTITY_INSERT [${schema}].[${name}] ON`);
+  }
+
+  for (const row of dataResult.recordset) {
+    const values = colNames.map((c) => formatSqlValue(row[c])).join(', ');
+    lines.push(`INSERT INTO [${schema}].[${name}] (${colList}) VALUES (${values})`);
+  }
+
+  if (hasIdentity) {
+    lines.push(`SET IDENTITY_INSERT [${schema}].[${name}] OFF`);
+  }
+
+  return lines.join('\n');
+}
+
+function formatSqlValue(val) {
+  if (val === null || val === undefined) return 'NULL';
+  if (typeof val === 'boolean')   return val ? '1' : '0';
+  if (typeof val === 'number')    return String(val);
+  if (Buffer.isBuffer(val))       return '0x' + val.toString('hex');
+  if (val instanceof Date)        return `'${val.toISOString().slice(0, 19).replace('T', ' ')}'`;
+  return `N'${String(val).replace(/'/g, "''")}'`;
 }
 
 function formatType(col) {
   const t = col.data_type.toLowerCase();
-  const varlen = ['varchar', 'nvarchar', 'char', 'nchar', 'binary', 'varbinary'];
+  const varlen   = ['varchar', 'nvarchar', 'char', 'nchar', 'binary', 'varbinary'];
   const precScale = ['decimal', 'numeric'];
 
   if (varlen.includes(t)) {

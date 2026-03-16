@@ -44,6 +44,8 @@ export default function ObjectGrid() {
     destConnected,
     destSchema,
     setDestSchema,
+    includeData,
+    setIncludeData,
     setSelectedObjects,
     sourceConfig,
   } = useAppStore();
@@ -221,6 +223,8 @@ export default function ObjectGrid() {
         availableSchemas={availableSchemas}
         destSchema={destSchema}
         onDestSchema={setDestSchema}
+        includeData={includeData}
+        onIncludeData={setIncludeData}
         selectedCount={selectedCount}
         onClone={clone}
         cloneLoading={cloneLoading}

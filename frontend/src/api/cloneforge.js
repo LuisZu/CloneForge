@@ -12,9 +12,9 @@ export function fetchObjects(conn) {
   return api.post('/source/objects', conn).then((r) => r.data.objects);
 }
 
-export function fetchDDL(conn, { schema, name, type }) {
+export function fetchDDL(conn, { schema, name, type }, includeData = false) {
   return api
-    .post('/source/ddl', { connection: conn, schema, name, type })
+    .post('/source/ddl', { connection: conn, schema, name, type, includeData })
     .then((r) => r.data.ddl);
 }
 

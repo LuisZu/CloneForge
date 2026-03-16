@@ -30,12 +30,12 @@ async function getObjects(req, res) {
 }
 
 async function getDDL(req, res) {
-  const { connection, schema, name, type } = req.body;
+  const { connection, schema, name, type, includeData } = req.body;
   if (!connection || !schema || !name || !type) {
     return res.status(400).json({ error: 'Faltan campos: connection, schema, name, type' });
   }
   const conn = validateConn(connection);
-  const ddl = await sourceService.getDDL(conn, schema, name, type);
+  const ddl = await sourceService.getDDL(conn, schema, name, type, !!includeData);
   res.json({ ddl });
 }
 

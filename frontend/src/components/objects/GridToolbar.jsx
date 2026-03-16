@@ -13,6 +13,8 @@ export default function GridToolbar({
   availableSchemas,
   destSchema,
   onDestSchema,
+  includeData,
+  onIncludeData,
   selectedCount,
   onClone,
   cloneLoading,
@@ -133,7 +135,7 @@ export default function GridToolbar({
             ))}
           </div>
 
-          {/* Dest schema input + clone button */}
+          {/* Dest schema input + include data + clone button */}
           <div className="flex items-center gap-2 ml-auto">
             <div className="flex flex-col">
               <label className="text-xs text-slate-400 mb-1">Esquema destino (opcional)</label>
@@ -144,6 +146,33 @@ export default function GridToolbar({
                 onChange={(e) => onDestSchema(e.target.value)}
                 className="w-36 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Include data toggle */}
+            <div className="flex flex-col justify-end pb-0.5">
+              <span className="text-xs text-slate-400 mb-1">Incluir datos</span>
+              <button
+                onClick={() => onIncludeData(!includeData)}
+                title="Copiar también los registros de las tablas seleccionadas"
+                className={clsx(
+                  'relative inline-flex items-center h-[34px] gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-colors',
+                  includeData
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-slate-500 border-slate-300 hover:border-slate-400'
+                )}
+              >
+                <span className={clsx(
+                  'w-7 h-4 rounded-full transition-colors flex items-center px-0.5',
+                  includeData ? 'bg-emerald-400' : 'bg-slate-300'
+                )}>
+                  <span className={clsx(
+                    'w-3 h-3 rounded-full bg-white shadow transition-transform',
+                    includeData ? 'translate-x-3' : 'translate-x-0'
+                  )} />
+                </span>
+                {includeData ? 'Sí' : 'No'}
+              </button>
+              <span className="text-xs text-slate-400 mt-0.5 text-center">(solo tablas)</span>
             </div>
 
             <div className="flex flex-col justify-end">
