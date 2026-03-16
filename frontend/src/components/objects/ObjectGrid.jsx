@@ -23,6 +23,7 @@ export default function ObjectGrid() {
   const gridRef = useRef();
   const [quickFilter, setQuickFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState(TYPE_ALL);
+  const [schemaFilter, setSchemaFilter] = useState([]);
 
   const {
     objects,
@@ -31,11 +32,32 @@ export default function ObjectGrid() {
     cloneResults,
     cloneLoading,
     destConnected,
+    destSchema,
+    setDestSchema,
     setSelectedObjects,
   } = useAppStore();
 
   const { clone } = useCloneOperation();
   const selectedCount = useAppStore((s) => s.selectedObjects.length);
+
+  // Derive unique schemas from loaded objects, sorted alphabetically
+  const availableSchemas = useMemo(() => {
+    const set = new Set(objects.map((o) => o.schema));
+    return [...set].sort();
+  }, [objects]);
+
+  // When objects load, initialise schemaFilter to all schemas
+  const prevSchemasRef = useRef([]);
+  useMemo(() => {
+    const prev = prevSchemasRef.current;
+    if (
+      availableSchemas.length > 0 &&
+      (prev.length === 0 || prev.join() !== availableSchemas.join())
+    ) {
+      setSchemaFilter(availableSchemas);
+      prevSchemasRef.current = availableSchemas;
+    }
+  }, [availableSchemas]);
 
   // Build a map from object id → result for row styling
   const resultMap = useMemo(() => {
@@ -91,15 +113,13 @@ export default function ObjectGrid() {
     },
   ], [resultMap]);
 
-  const defaultColDef = useMemo(() => ({
-    resizable: true,
-  }), []);
+  const defaultColDef = useMemo(() => ({ resizable: true }), []);
 
-  // External type filter
+  // External filter: type AND schema
   const isExternalFilterPresent = useCallback(() => true, []);
   const doesExternalFilterPass = useCallback(
-    ({ data }) => typeFilter.includes(data.type),
-    [typeFilter]
+    ({ data }) => typeFilter.includes(data.type) && schemaFilter.includes(data.schema),
+    [typeFilter, schemaFilter]
   );
 
   function onSelectionChanged() {
@@ -107,7 +127,6 @@ export default function ObjectGrid() {
     setSelectedObjects(rows);
   }
 
-  // Row class based on clone result
   function getRowClass({ data }) {
     const r = resultMap[data?.id];
     if (!r) return '';
@@ -135,6 +154,14 @@ export default function ObjectGrid() {
           setTypeFilter(f);
           gridRef.current?.api?.onFilterChanged();
         }}
+        schemaFilter={schemaFilter}
+        onSchemaFilter={(f) => {
+          setSchemaFilter(f);
+          gridRef.current?.api?.onFilterChanged();
+        }}
+        availableSchemas={availableSchemas}
+        destSchema={destSchema}
+        onDestSchema={setDestSchema}
         selectedCount={selectedCount}
         onClone={clone}
         cloneLoading={cloneLoading}

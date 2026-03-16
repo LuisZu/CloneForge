@@ -11,7 +11,26 @@ async function testConnection(connConfig) {
   });
 }
 
-async function executeScripts(connConfig, scripts) {
+/**
+ * Replaces all occurrences of [sourceSchema]. and sourceSchema. in DDL
+ * with [destSchema]. to redirect objects to a different schema.
+ */
+function rewriteSchema(ddl, sourceSchema, destSchema) {
+  if (!destSchema || destSchema === sourceSchema) return ddl;
+  // Replace bracketed form: [sourceSchema].
+  const bracketedPattern = new RegExp(`\\[${escapeRegex(sourceSchema)}\\]\\.`, 'gi');
+  // Replace unbracketed form: sourceSchema.  (word boundary to avoid partial matches)
+  const unbracketedPattern = new RegExp(`\\b${escapeRegex(sourceSchema)}\\.`, 'gi');
+  return ddl
+    .replace(bracketedPattern, `[${destSchema}].`)
+    .replace(unbracketedPattern, `[${destSchema}].`);
+}
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function executeScripts(connConfig, scripts, destSchema) {
   // Sort: TABLA first, TRIGGER last
   const sorted = [...scripts].sort((a, b) => {
     return (TYPE_ORDER.indexOf(a.type) ?? 99) - (TYPE_ORDER.indexOf(b.type) ?? 99);
@@ -22,7 +41,10 @@ async function executeScripts(connConfig, scripts) {
 
     for (const script of sorted) {
       try {
-        await pool.request().batch(script.ddl);
+        const ddl = destSchema
+          ? rewriteSchema(script.ddl, script.schema, destSchema)
+          : script.ddl;
+        await pool.request().batch(ddl);
         results.push({
           id: script.id,
           name: script.name,
@@ -55,4 +77,4 @@ async function executeScripts(connConfig, scripts) {
   });
 }
 
-module.exports = { testConnection, executeScripts };
+module.exports = { testConnection, executeScripts, rewriteSchema };

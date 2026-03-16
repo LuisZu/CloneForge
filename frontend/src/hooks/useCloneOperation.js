@@ -7,6 +7,7 @@ export function useCloneOperation() {
   const {
     sourceConfig,
     destConfig,
+    destSchema,
     selectedObjects,
     setCloneLoading,
     setCloneResults,
@@ -58,7 +59,7 @@ export function useCloneOperation() {
 
       let execResults = { results: [], summary: { total: 0, succeeded: 0, failed: 0 } };
       if (toExecute.length > 0) {
-        execResults = await executeScripts(destConfig, toExecute);
+        execResults = await executeScripts(destConfig, toExecute, destSchema);
       }
 
       const allResults = [...failed, ...execResults.results];
