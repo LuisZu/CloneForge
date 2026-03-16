@@ -2,10 +2,13 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { FileCode } from 'lucide-react';
 
 import useAppStore from '../../store/appStore';
+import { fetchDDL } from '../../api/cloneforge';
 import TypeBadge from './TypeBadge';
 import GridToolbar from './GridToolbar';
+import ScriptPreviewModal from './ScriptPreviewModal';
 import { useCloneOperation } from '../../hooks/useCloneOperation';
 import { useSourceConnection } from '../../hooks/useSourceConnection';
 
@@ -26,6 +29,12 @@ export default function ObjectGrid() {
   const [typeFilter, setTypeFilter] = useState(TYPE_ALL);
   const [schemaFilter, setSchemaFilter] = useState([]);
 
+  // Script preview state
+  const [previewObj, setPreviewObj] = useState(null);
+  const [previewDDL, setPreviewDDL] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(null);
+
   const {
     objects,
     objectsLoading,
@@ -36,6 +45,7 @@ export default function ObjectGrid() {
     destSchema,
     setDestSchema,
     setSelectedObjects,
+    sourceConfig,
   } = useAppStore();
 
   const { clone } = useCloneOperation();
@@ -67,6 +77,45 @@ export default function ObjectGrid() {
     return Object.fromEntries(cloneResults.results.map((r) => [r.id, r]));
   }, [cloneResults]);
 
+  async function openPreview(data) {
+    setPreviewObj(data);
+    setPreviewDDL(null);
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const ddl = await fetchDDL(sourceConfig, data);
+      setPreviewDDL(ddl);
+    } catch (err) {
+      setPreviewError(err.response?.data?.error || err.message);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function closePreview() {
+    setPreviewObj(null);
+    setPreviewDDL(null);
+    setPreviewError(null);
+  }
+
+  // Cell renderer for the preview button — defined outside columnDefs
+  // to get a stable reference we use a factory that captures openPreview
+  const PreviewButtonRenderer = useCallback(({ data }) => {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <button
+          onClick={() => openPreview(data)}
+          title="Ver script SQL"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+        >
+          <FileCode size={14} />
+          <span>Ver</span>
+        </button>
+      </div>
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceConfig]);
+
   const columnDefs = useMemo(() => [
     {
       checkboxSelection: true,
@@ -96,8 +145,16 @@ export default function ObjectGrid() {
       sortable: true,
     },
     {
+      headerName: 'Script',
+      width: 90,
+      cellRenderer: PreviewButtonRenderer,
+      sortable: false,
+      filter: false,
+      resizable: false,
+    },
+    {
       headerName: 'Estado',
-      width: 140,
+      width: 130,
       cellRenderer: ({ data }) => {
         const r = resultMap[data.id];
         if (!r) return null;
@@ -113,7 +170,7 @@ export default function ObjectGrid() {
       sortable: false,
       filter: false,
     },
-  ], [resultMap]);
+  ], [resultMap, PreviewButtonRenderer]);
 
   const defaultColDef = useMemo(() => ({ resizable: true }), []);
 
@@ -199,6 +256,14 @@ export default function ObjectGrid() {
           />
         )}
       </div>
+
+      <ScriptPreviewModal
+        object={previewObj}
+        ddl={previewDDL}
+        loading={previewLoading}
+        error={previewError}
+        onClose={closePreview}
+      />
     </div>
   );
 }
