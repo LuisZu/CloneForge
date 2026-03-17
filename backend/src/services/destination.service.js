@@ -41,10 +41,28 @@ async function executeScripts(connConfig, scripts, destSchema) {
 
     for (const script of sorted) {
       try {
-        const ddl = (destSchema
+        const rawDdl = (destSchema
           ? rewriteSchema(script.ddl, script.schema, destSchema)
           : script.ddl).trim();
-        await pool.request().query(ddl);
+
+        if (script.type === 'TABLA') {
+          // Tables may produce multiple statements (CREATE TABLE + indexes + FKs + data).
+          // Split on blank lines and execute each statement individually so errors are precise.
+          const stmts = rawDdl
+            .split(/\n\s*\n/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          for (const stmt of stmts) {
+            await pool.request().batch(stmt);
+          }
+        } else {
+          // For VISTAs, SPs, FUNCIONs and TRIGGERs use .batch() — it sends the SQL
+          // directly to SQL Server without wrapping in sp_executesql, which is
+          // required for CREATE OR ALTER VIEW/PROCEDURE/FUNCTION/TRIGGER to work
+          // correctly as the first (and only) statement in the batch.
+          await pool.request().batch(rawDdl);
+        }
+
         results.push({
           id: script.id,
           name: script.name,
