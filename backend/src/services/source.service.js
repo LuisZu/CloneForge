@@ -70,19 +70,26 @@ async function getDDL(connConfig, schema, name, type, includeData = false) {
       );
     }
 
+    // Views: use DROP + CREATE (two separate batches via GO) instead of
+    // CREATE OR ALTER VIEW, which causes "ALTER VIEW must be the first
+    // statement in a query batch" on some SQL Server configurations.
+    if (type === 'VISTA') {
+      const cleanDdl = ddl.trim().replace(/\bCREATE\s+OR\s+ALTER\s+VIEW\b/gi, 'CREATE VIEW');
+      const drop = `IF OBJECT_ID(N'[${schema}].[${name}]', 'V') IS NOT NULL\n    DROP VIEW [${schema}].[${name}]`;
+      return `${drop}\nGO\n${cleanDdl}`;
+    }
+
     return makeIdempotent(ddl);
   });
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-/** Rewrite CREATE X → CREATE OR ALTER X for SP/View/Function/Trigger */
+/** Rewrite CREATE X → CREATE OR ALTER X for SP/Function/Trigger */
 function makeIdempotent(ddl) {
   return ddl
     .replace(/\bCREATE\s+OR\s+ALTER\s+PROCEDURE\b/gi, 'CREATE OR ALTER PROCEDURE')
     .replace(/\bCREATE\s+PROCEDURE\b/gi,              'CREATE OR ALTER PROCEDURE')
-    .replace(/\bCREATE\s+OR\s+ALTER\s+VIEW\b/gi,     'CREATE OR ALTER VIEW')
-    .replace(/\bCREATE\s+VIEW\b/gi,                  'CREATE OR ALTER VIEW')
     .replace(/\bCREATE\s+OR\s+ALTER\s+FUNCTION\b/gi, 'CREATE OR ALTER FUNCTION')
     .replace(/\bCREATE\s+FUNCTION\b/gi,              'CREATE OR ALTER FUNCTION')
     .replace(/\bCREATE\s+OR\s+ALTER\s+TRIGGER\b/gi,  'CREATE OR ALTER TRIGGER')
