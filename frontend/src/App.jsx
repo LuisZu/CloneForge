@@ -2,6 +2,7 @@ import { GitBranch } from 'lucide-react';
 import ConnectionForm from './components/connection/ConnectionForm';
 import ObjectGrid from './components/objects/ObjectGrid';
 import ResultsModal from './components/results/ResultsModal';
+import TextReplacements from './components/replacements/TextReplacements';
 import Toast from './components/Toast';
 import useAppStore from './store/appStore';
 import { useSourceConnection } from './hooks/useSourceConnection';
@@ -65,6 +66,8 @@ export default function App() {
           {destConnected && destVersion && (
             <p className="text-xs text-slate-500 -mt-2 px-1">{destVersion}</p>
           )}
+
+          <TextReplacements />
 
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700 space-y-1">
             <p className="font-semibold">Flujo de trabajo:</p>

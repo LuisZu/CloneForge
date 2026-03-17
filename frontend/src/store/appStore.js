@@ -52,6 +52,10 @@ const useAppStore = create(
       destSchema: '',
       setDestSchema: (destSchema) => set({ destSchema }),
 
+      // ── Text replacements ─────────────────────────────────────────────────────
+      textReplacements: [],        // [{ id, find, replace }]
+      setTextReplacements: (textReplacements) => set({ textReplacements }),
+
       // ── Clone results ─────────────────────────────────────────────────────────
       cloneResults: null,
       cloneLoading: false,

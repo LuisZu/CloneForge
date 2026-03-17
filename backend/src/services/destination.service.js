@@ -30,7 +30,17 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-async function executeScripts(connConfig, scripts, destSchema) {
+/** Apply an ordered list of {find, replace} rules to the DDL text. */
+function applyReplacements(ddl, replacements) {
+  if (!replacements || replacements.length === 0) return ddl;
+  return replacements.reduce((text, { find, replace }) => {
+    if (!find) return text;
+    // Plain string replace — split/join handles all occurrences without regex escaping issues
+    return text.split(find).join(replace || '');
+  }, ddl);
+}
+
+async function executeScripts(connConfig, scripts, destSchema, replacements = []) {
   // Sort: TABLA first, TRIGGER last
   const sorted = [...scripts].sort((a, b) => {
     return (TYPE_ORDER.indexOf(a.type) ?? 99) - (TYPE_ORDER.indexOf(b.type) ?? 99);
@@ -41,9 +51,12 @@ async function executeScripts(connConfig, scripts, destSchema) {
 
     for (const script of sorted) {
       try {
-        const rawDdl = (destSchema
-          ? rewriteSchema(script.ddl, script.schema, destSchema)
-          : script.ddl).trim();
+        const rawDdl = applyReplacements(
+          (destSchema
+            ? rewriteSchema(script.ddl, script.schema, destSchema)
+            : script.ddl).trim(),
+          replacements
+        );
 
         if (script.type === 'TABLA') {
           // Tables may produce multiple statements (CREATE TABLE + indexes + FKs + data).

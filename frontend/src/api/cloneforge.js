@@ -24,8 +24,13 @@ export function testDestinationConnection(conn) {
   return api.post('/destination/test', conn).then((r) => r.data);
 }
 
-export function executeScripts(conn, scripts, destSchema) {
+export function executeScripts(conn, scripts, destSchema, replacements = []) {
   return api
-    .post('/destination/execute', { connection: conn, scripts, destSchema: destSchema || null })
+    .post('/destination/execute', {
+      connection: conn,
+      scripts,
+      destSchema: destSchema || null,
+      replacements,
+    })
     .then((r) => r.data);
 }

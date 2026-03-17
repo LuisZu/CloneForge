@@ -24,12 +24,17 @@ async function testConnection(req, res) {
 }
 
 async function executeScripts(req, res) {
-  const { connection, scripts, destSchema } = req.body;
+  const { connection, scripts, destSchema, replacements } = req.body;
   if (!connection || !Array.isArray(scripts) || scripts.length === 0) {
     return res.status(400).json({ error: 'Faltan campos: connection y scripts[]' });
   }
   const conn = validateConn(connection);
-  const result = await destinationService.executeScripts(conn, scripts, destSchema || null);
+  const result = await destinationService.executeScripts(
+    conn,
+    scripts,
+    destSchema || null,
+    Array.isArray(replacements) ? replacements : []
+  );
   res.json(result);
 }
 
