@@ -160,14 +160,11 @@ export default function ObjectGrid() {
       cellRenderer: ({ data }) => {
         const r = resultMap[data.id];
         if (!r) return null;
-        if (r.success) {
+        if (r.status === 'success' || r.success)
           return <span className="text-green-600 text-xs font-medium">✓ Exitoso</span>;
-        }
-        return (
-          <span className="text-red-500 text-xs font-medium" title={r.error}>
-            ✗ Error
-          </span>
-        );
+        if (r.status === 'exists')
+          return <span className="text-amber-500 text-xs font-medium" title="El objeto ya existe en destino">⚠ Ya existe</span>;
+        return <span className="text-red-500 text-xs font-medium" title={r.error}>✗ Error</span>;
       },
       sortable: false,
       filter: false,
@@ -191,7 +188,9 @@ export default function ObjectGrid() {
   function getRowClass({ data }) {
     const r = resultMap[data?.id];
     if (!r) return '';
-    return r.success ? 'bg-green-50' : 'bg-red-50';
+    if (r.status === 'success' || r.success) return 'bg-green-50';
+    if (r.status === 'exists') return 'bg-amber-50';
+    return 'bg-red-50';
   }
 
   if (objectsError) {

@@ -81,29 +81,34 @@ async function executeScripts(connConfig, scripts, destSchema, replacements = []
           name: script.name,
           schema: script.schema,
           type: script.type,
+          status: 'success',
           success: true,
           error: null,
         });
       } catch (err) {
+        // SQL Server error 2714: "There is already an object named '...' in the database."
+        const alreadyExists =
+          err.number === 2714 ||
+          /already an object named/i.test(err.message);
+
         results.push({
           id: script.id,
           name: script.name,
           schema: script.schema,
           type: script.type,
+          status: alreadyExists ? 'exists' : 'error',
           success: false,
           error: err.message || 'Error desconocido',
         });
       }
     }
 
-    const succeeded = results.filter((r) => r.success).length;
+    const succeeded = results.filter((r) => r.status === 'success').length;
+    const exists    = results.filter((r) => r.status === 'exists').length;
+    const failed    = results.filter((r) => r.status === 'error').length;
     return {
       results,
-      summary: {
-        total: results.length,
-        succeeded,
-        failed: results.length - succeeded,
-      },
+      summary: { total: results.length, succeeded, exists, failed },
     };
   });
 }

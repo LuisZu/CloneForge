@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, CheckCircle, XCircle } from 'lucide-react';
+import { X, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import ResultRow from './ResultRow';
 import useAppStore from '../../store/appStore';
 
@@ -34,16 +34,26 @@ export default function ResultsModal() {
               <CheckCircle size={14} />
               <strong>{summary.succeeded}</strong> exitosos
             </span>
+            {summary.exists > 0 && (
+              <span className="flex items-center gap-1.5 text-sm text-amber-600">
+                <AlertCircle size={14} />
+                <strong>{summary.exists}</strong> ya existen
+              </span>
+            )}
             <span className="flex items-center gap-1.5 text-sm text-red-600">
               <XCircle size={14} />
               <strong>{summary.failed}</strong> fallidos
             </span>
 
-            {/* Progress bar */}
-            <div className="ml-auto w-32 bg-slate-200 rounded-full h-2">
+            {/* Progress bar: green=success, amber=exists, red=error */}
+            <div className="ml-auto w-32 bg-slate-200 rounded-full h-2 flex overflow-hidden rounded-full">
               <div
-                className="bg-green-500 h-2 rounded-full transition-all"
+                className="bg-green-500 h-2 transition-all"
                 style={{ width: `${summary.total ? (summary.succeeded / summary.total) * 100 : 0}%` }}
+              />
+              <div
+                className="bg-amber-400 h-2 transition-all"
+                style={{ width: `${summary.total ? ((summary.exists ?? 0) / summary.total) * 100 : 0}%` }}
               />
             </div>
           </div>
