@@ -122,6 +122,7 @@ export default function ObjectGrid() {
     {
       checkboxSelection: true,
       headerCheckboxSelection: true,
+      headerCheckboxSelectionFilteredOnly: true,
       width: 48,
       minWidth: 48,
       maxWidth: 48,
