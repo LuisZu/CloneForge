@@ -70,56 +70,21 @@ async function getDDL(connConfig, schema, name, type, includeData = false) {
       );
     }
 
-    // Use DROP + CREATE for all programmable objects instead of CREATE OR ALTER,
-    // which causes "ALTER X must be the first statement in a query batch" on
-    // some SQL Server configurations. .batch() splits on GO so each statement
-    // runs as its own batch, making CREATE the clean first instruction.
-    return buildDropCreate(ddl.trim(), schema, name, type);
+    // Return the DDL as-is from OBJECT_DEFINITION(), only stripping any
+    // "CREATE OR ALTER" back to plain "CREATE" in case it was stored that way.
+    return normalizeDdl(ddl.trim());
   });
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const DROP_TYPE = {
-  VISTA:   { keyword: 'VIEW',      typeCode: "'V'" },
-  SP:      { keyword: 'PROCEDURE', typeCode: "'P'" },
-  FUNCION: { keyword: 'FUNCTION',  typeCode: null  }, // FN/IF/TF — skip type code
-  TRIGGER: { keyword: 'TRIGGER',   typeCode: "'TR'" },
-};
-
-/**
- * Returns a DROP (if exists) + GO + CREATE script.
- * The GO separator makes .batch() send them as two independent batches so
- * CREATE is always the first statement of its batch.
- */
-function buildDropCreate(ddl, schema, name, type) {
-  const meta = DROP_TYPE[type];
-  if (!meta) return ddl; // fallback: return as-is
-
-  // Normalise: strip any prior CREATE OR ALTER → plain CREATE
-  const cleanDdl = ddl
+/** Strip CREATE OR ALTER → plain CREATE, then return trimmed DDL. */
+function normalizeDdl(ddl) {
+  return ddl
     .replace(/\bCREATE\s+OR\s+ALTER\s+PROCEDURE\b/gi, 'CREATE PROCEDURE')
     .replace(/\bCREATE\s+OR\s+ALTER\s+FUNCTION\b/gi,  'CREATE FUNCTION')
     .replace(/\bCREATE\s+OR\s+ALTER\s+TRIGGER\b/gi,   'CREATE TRIGGER')
     .replace(/\bCREATE\s+OR\s+ALTER\s+VIEW\b/gi,      'CREATE VIEW');
-
-  const typeFilter = meta.typeCode ? `, ${meta.typeCode}` : '';
-  const drop =
-    `IF OBJECT_ID(N'[${schema}].[${name}]'${typeFilter}) IS NOT NULL\n` +
-    `    DROP ${meta.keyword} [${schema}].[${name}]`;
-
-  return `${drop}\nGO\n${cleanDdl}`;
-}
-
-/** @deprecated kept only as safety fallback — not called for any active type */
-function makeIdempotent(ddl) {
-  return ddl
-    .replace(/\bCREATE\s+OR\s+ALTER\s+PROCEDURE\b/gi, 'CREATE OR ALTER PROCEDURE')
-    .replace(/\bCREATE\s+PROCEDURE\b/gi,              'CREATE OR ALTER PROCEDURE')
-    .replace(/\bCREATE\s+OR\s+ALTER\s+FUNCTION\b/gi, 'CREATE OR ALTER FUNCTION')
-    .replace(/\bCREATE\s+FUNCTION\b/gi,              'CREATE OR ALTER FUNCTION')
-    .replace(/\bCREATE\s+OR\s+ALTER\s+TRIGGER\b/gi,  'CREATE OR ALTER TRIGGER')
-    .replace(/\bCREATE\s+TRIGGER\b/gi,               'CREATE OR ALTER TRIGGER');
 }
 
 async function buildTableDDL(pool, schema, name, includeData) {
