@@ -58,11 +58,16 @@ export default function ResultsModal() {
             </div>
           </div>
 
-          {/* Results list */}
+          {/* Results list — success → exists → error */}
           <div className="flex-1 overflow-y-auto">
-            {results.map((r) => (
-              <ResultRow key={r.id} result={r} />
-            ))}
+            {[...results]
+              .sort((a, b) => {
+                const order = { success: 0, exists: 1, error: 2 };
+                return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+              })
+              .map((r) => (
+                <ResultRow key={r.id} result={r} />
+              ))}
           </div>
 
           {/* Footer */}
