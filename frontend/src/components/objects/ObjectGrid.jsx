@@ -206,10 +206,7 @@ export default function ObjectGrid() {
     <div className="flex flex-col h-full">
       <GridToolbar
         quickFilter={quickFilter}
-        onQuickFilter={(v) => {
-          setQuickFilter(v);
-          gridRef.current?.api?.setQuickFilter(v);
-        }}
+        onQuickFilter={setQuickFilter}
         typeFilter={typeFilter}
         onTypeFilter={(f) => {
           setTypeFilter(f);
@@ -248,6 +245,7 @@ export default function ObjectGrid() {
             rowData={objects}
             columnDefs={columnDefs}
             defaultColDef={defaultColDef}
+            quickFilterText={quickFilter}
             rowSelection="multiple"
             suppressRowClickSelection={true}
             onSelectionChanged={onSelectionChanged}
