@@ -184,14 +184,12 @@ if ($null -eq $pm2) {
 $pm2 = Get-Command pm2 -ErrorAction SilentlyContinue
 if ($pm2) {
     Push-Location "$AppPath\backend"
-    pm2 describe cloneforge-backend 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        pm2 start src/index.js --name cloneforge-backend
-        Write-Ok "Backend iniciado con PM2 (nombre: cloneforge-backend)"
-    } else {
-        pm2 restart cloneforge-backend
-        Write-Ok "Backend reiniciado con PM2."
-    }
+    # Eliminar proceso previo si existe (sin error si no existe) y arrancar limpio.
+    # Evita el problema de $LASTEXITCODE al pipear a Out-Null en PS 5.1.
+    $null = pm2 delete cloneforge-backend 2>&1
+    pm2 start src/index.js --name cloneforge-backend
+    if ($LASTEXITCODE -ne 0) { Write-Err "PM2 no pudo iniciar el backend."; Pop-Location; exit 1 }
+    Write-Ok "Backend iniciado con PM2 (nombre: cloneforge-backend)"
     pm2 save
     Write-Ok "Lista PM2 guardada."
     Pop-Location
