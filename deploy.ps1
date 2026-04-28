@@ -8,7 +8,7 @@
 .PARAMETER SiteName
     Nombre del sitio en IIS. Por defecto: CloneForge
 .PARAMETER Port
-    Puerto HTTP del sitio IIS. Por defecto: 80
+    Puerto HTTP del sitio IIS. Por defecto: 8080
 .PARAMETER BackendPort
     Puerto del backend Node.js. Por defecto: 3001
 .PARAMETER AppPath
@@ -20,7 +20,7 @@
 
 param(
     [string] $SiteName    = "CloneForge",
-    [int]    $Port        = 80,
+    [int]    $Port        = 8080,
     [int]    $BackendPort = 3001,
     [string] $AppPath     = $PSScriptRoot
 )

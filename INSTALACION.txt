@@ -116,9 +116,9 @@ Una vez instalados todos los pre-requisitos, ejecuta el script de despliegue.
        .\deploy.ps1
 
   Parámetros opcionales:
-       .\deploy.ps1 -Port 8080                         # Puerto distinto al 80
+       .\deploy.ps1 -Port 80                           # Usar puerto 80 (estandar HTTP)
        .\deploy.ps1 -SiteName "CloneForge-Test"        # Nombre del sitio IIS
-       .\deploy.ps1 -Port 8080 -BackendPort 3002       # Puertos personalizados
+       .\deploy.ps1 -Port 9090 -BackendPort 3002       # Puertos personalizados
 
 El script realiza automáticamente:
   ✔ Verifica Node.js, IIS, URL Rewrite y ARR
@@ -260,12 +260,12 @@ PROBLEMA: Al recargar una página (F5) aparece Error 404
     1. Verifica que existe frontend\dist\web.config (debe generarse en el build).
     2. Instala URL Rewrite Module (sección 1.3).
 
-PROBLEMA: El puerto 80 ya está ocupado
-  CAUSA   : Otro proceso (Skype, otro servidor) usa el puerto 80.
+PROBLEMA: El puerto 8080 ya está ocupado
+  CAUSA   : Otro proceso usa el puerto 8080 (o el puerto configurado).
   SOLUCIÓN: Despliega en un puerto alternativo:
-              .\deploy.ps1 -Port 8080
+              .\deploy.ps1 -Port 9090
             O detén el proceso que usa el puerto:
-              netstat -ano | findstr :80
+              netstat -ano | findstr :8080
               taskkill /PID <PID> /F
 
 PROBLEMA: "ECONNREFUSED" en los logs del backend
