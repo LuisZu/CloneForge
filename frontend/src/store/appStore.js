@@ -47,6 +47,8 @@ const useAppStore = create(
       // ── Clone options ─────────────────────────────────────────────────────────
       includeData: false,
       setIncludeData: (includeData) => set({ includeData }),
+      overwriteExisting: false,
+      setOverwriteExisting: (overwriteExisting) => set({ overwriteExisting }),
 
       // ── Destination schema override ───────────────────────────────────────────
       destSchema: '',

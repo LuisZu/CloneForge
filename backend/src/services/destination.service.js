@@ -40,7 +40,22 @@ function applyReplacements(ddl, replacements) {
   }, ddl);
 }
 
-async function executeScripts(connConfig, scripts, destSchema, replacements = []) {
+/** Returns a DROP IF EXISTS statement for the given object type, or null for unsupported types. */
+function getDropStatement(type, schema, name) {
+  // Escape brackets inside identifiers
+  const s = schema.replace(/]/g, ']]');
+  const n = name.replace(/]/g, ']]');
+  const obj = `[${s}].[${n}]`;
+  switch (type) {
+    case 'SP':      return `DROP PROCEDURE IF EXISTS ${obj}`;
+    case 'VISTA':   return `DROP VIEW IF EXISTS ${obj}`;
+    case 'FUNCION': return `DROP FUNCTION IF EXISTS ${obj}`;
+    case 'TRIGGER': return `DROP TRIGGER IF EXISTS ${obj}`;
+    default:        return null;
+  }
+}
+
+async function executeScripts(connConfig, scripts, destSchema, replacements = [], overwrite = false) {
   // Sort: TABLA first, TRIGGER last
   const sorted = [...scripts].sort((a, b) => {
     return (TYPE_ORDER.indexOf(a.type) ?? 99) - (TYPE_ORDER.indexOf(b.type) ?? 99);
@@ -71,8 +86,13 @@ async function executeScripts(connConfig, scripts, destSchema, replacements = []
         } else {
           // For VISTAs, SPs, FUNCIONs and TRIGGERs use .batch() — it sends the SQL
           // directly to SQL Server without wrapping in sp_executesql, which is
-          // required for CREATE OR ALTER VIEW/PROCEDURE/FUNCTION/TRIGGER to work
+          // required for CREATE VIEW/PROCEDURE/FUNCTION/TRIGGER to work
           // correctly as the first (and only) statement in the batch.
+          if (overwrite) {
+            const targetSchema = destSchema || script.schema;
+            const dropSql = getDropStatement(script.type, targetSchema, script.name);
+            if (dropSql) await pool.request().batch(dropSql);
+          }
           await pool.request().batch(rawDdl);
         }
 

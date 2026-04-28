@@ -16,6 +16,8 @@ export default function GridToolbar({
   onDestSchema,
   includeData,
   onIncludeData,
+  overwriteExisting,
+  onOverwriteExisting,
   selectedCount,
   onClone,
   cloneLoading,
@@ -118,6 +120,32 @@ export default function GridToolbar({
               )} />
             </span>
             {includeData ? 'Sí' : 'No'}
+          </button>
+        </div>
+
+        {/* Overwrite toggle */}
+        <div className="flex flex-col">
+          <span className="text-xs text-slate-400 mb-1">Reemplazar si existe</span>
+          <button
+            onClick={() => onOverwriteExisting(!overwriteExisting)}
+            title="Si el objeto ya existe en destino, lo elimina y vuelve a crearlo"
+            className={clsx(
+              'flex items-center gap-2 h-[34px] px-3 rounded-lg text-xs font-medium border transition-colors',
+              overwriteExisting
+                ? 'bg-orange-500 text-white border-orange-500'
+                : 'bg-white text-slate-500 border-slate-300 hover:border-slate-400'
+            )}
+          >
+            <span className={clsx(
+              'w-7 h-4 rounded-full transition-colors flex items-center px-0.5',
+              overwriteExisting ? 'bg-orange-300' : 'bg-slate-300'
+            )}>
+              <span className={clsx(
+                'w-3 h-3 rounded-full bg-white shadow transition-transform',
+                overwriteExisting ? 'translate-x-3' : 'translate-x-0'
+              )} />
+            </span>
+            {overwriteExisting ? 'Sí' : 'No'}
           </button>
         </div>
 

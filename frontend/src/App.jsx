@@ -3,6 +3,7 @@ import ConnectionForm from './components/connection/ConnectionForm';
 import ObjectGrid from './components/objects/ObjectGrid';
 import ResultsModal from './components/results/ResultsModal';
 import TextReplacements from './components/replacements/TextReplacements';
+import CloningOverlay from './components/CloningOverlay';
 import Toast from './components/Toast';
 import useAppStore from './store/appStore';
 import { useSourceConnection } from './hooks/useSourceConnection';
@@ -92,6 +93,7 @@ export default function App() {
       </div>
 
       <ResultsModal />
+      <CloningOverlay />
       <Toast />
     </div>
   );

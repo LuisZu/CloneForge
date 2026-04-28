@@ -9,6 +9,7 @@ export function useCloneOperation() {
     destConfig,
     destSchema,
     includeData,
+    overwriteExisting,
     textReplacements,
     selectedObjects,
     setCloneLoading,
@@ -63,7 +64,7 @@ export function useCloneOperation() {
       let execResults = { results: [], summary: { total: 0, succeeded: 0, failed: 0 } };
       if (toExecute.length > 0) {
         const activeReplacements = textReplacements.filter((r) => r.find.trim());
-        execResults = await executeScripts(destConfig, toExecute, destSchema, activeReplacements);
+        execResults = await executeScripts(destConfig, toExecute, destSchema, activeReplacements, overwriteExisting);
       }
 
       const allResults = [...failed, ...execResults.results];
