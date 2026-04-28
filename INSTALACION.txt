@@ -1,0 +1,334 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    CLONEFORGE  –  GUÍA DE INSTALACIÓN                       ║
+║                    Despliegue en IIS (Windows)                               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Última actualización: 2026-04-28
+Autor del documento : CloneForge Dev Team
+
+
+────────────────────────────────────────────────────────────────────────────────
+ ¿QUÉ ES CLONEFORGE?
+────────────────────────────────────────────────────────────────────────────────
+
+CloneForge es una aplicación web para clonar objetos de base de datos
+(tablas, vistas, stored procedures, funciones y triggers) entre bases de datos
+SQL Server.
+
+Arquitectura:
+  - Frontend  : React 18 + Vite  → archivos estáticos servidos por IIS
+  - Backend   : Node.js + Express → API REST corriendo en puerto 3001
+  - Base datos: SQL Server (las conexiones las ingresa el usuario en la UI)
+
+El frontend se comunica con el backend usando rutas relativas /api/*. En
+producción (IIS), el módulo ARR de IIS actúa como proxy inverso redirigiendo
+esas peticiones al proceso Node.js.
+
+
+════════════════════════════════════════════════════════════════════════════════
+ PARTE 1 – PRE-REQUISITOS
+════════════════════════════════════════════════════════════════════════════════
+
+Instala cada componente antes de ejecutar el script de despliegue.
+
+────────────────────────────────────────
+ 1.1  Node.js (versión 18 LTS o superior)
+────────────────────────────────────────
+Descarga: https://nodejs.org/en/download/
+
+  - Elige el instalador Windows x64 (.msi).
+  - Durante la instalación marca "Add to PATH".
+  - Verifica en un terminal nuevo:  node --version  (debe mostrar v18.x o mayor)
+
+────────────────────────────────────────
+ 1.2  IIS (Internet Information Services)
+────────────────────────────────────────
+Pasos en Windows 10/11:
+
+  1. Abre "Activar o desactivar las características de Windows"
+     (Panel de control → Programas → Activar/desactivar características)
+  2. Expande "Internet Information Services" y marca:
+       ✔ Herramientas de administración web → Consola de administración IIS
+       ✔ Servicios World Wide Web → Características HTTP comunes
+           ✔ Contenido estático
+           ✔ Documento predeterminado
+       ✔ Servicios World Wide Web → Características de desarrollo de aplicaciones
+           ✔ (Nada extra necesario para Node.js externo)
+  3. Acepta y espera que Windows instale los componentes.
+  4. Abre el Administrador de IIS (inetmgr) para verificar.
+
+────────────────────────────────────────
+ 1.3  URL Rewrite Module para IIS
+────────────────────────────────────────
+Descarga: https://www.iis.net/downloads/microsoft/url-rewrite
+
+  - Descarga el instalador x64.
+  - Ejecuta e instala (sin reinicio necesario en la mayoría de casos).
+  - Verifica: en el Administrador de IIS, al seleccionar tu sitio, debe
+    aparecer el icono "URL Rewrite" en la sección IIS.
+
+  IMPORTANTE: Sin este módulo las rutas de la SPA y el proxy /api no
+  funcionarán. La aplicación mostrará errores 404.
+
+────────────────────────────────────────
+ 1.4  Application Request Routing (ARR)
+────────────────────────────────────────
+Descarga: https://www.iis.net/downloads/microsoft/application-request-routing
+
+  - Descarga el instalador x64.
+  - Ejecuta e instala.
+  - Después de instalar, HABILITA el proxy a nivel de servidor:
+      1. Abre IIS Manager.
+      2. Selecciona el NODO RAÍZ del servidor (no un sitio individual).
+      3. Doble clic en "Application Request Routing Cache".
+      4. En el panel derecho haz clic en "Server Proxy Settings...".
+      5. Marca "Enable proxy" y haz clic en "Apply".
+
+  IMPORTANTE: Si ARR no tiene el proxy habilitado, las llamadas /api/
+  no llegarán al backend y verás errores 502 Bad Gateway.
+
+────────────────────────────────────────
+ 1.5  Git (para clonar el repositorio)
+────────────────────────────────────────
+Descarga: https://git-scm.com/download/win
+
+  - Instala con opciones por defecto.
+  - Clona el repositorio:
+      git clone <URL_DEL_REPOSITORIO>
+
+
+════════════════════════════════════════════════════════════════════════════════
+ PARTE 2 – DESPLIEGUE AUTOMÁTICO (RECOMENDADO)
+════════════════════════════════════════════════════════════════════════════════
+
+Una vez instalados todos los pre-requisitos, ejecuta el script de despliegue.
+
+────────────────────────────────────────
+ 2.1  Ejecutar deploy.ps1
+────────────────────────────────────────
+
+  1. Abre PowerShell COMO ADMINISTRADOR.
+  2. Navega hasta la carpeta del proyecto:
+       cd C:\ruta\al\proyecto\CloneForge
+  3. Si tu PowerShell tiene restricción de scripts, permite la ejecución:
+       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+  4. Ejecuta el script:
+       .\deploy.ps1
+
+  Parámetros opcionales:
+       .\deploy.ps1 -Port 8080                         # Puerto distinto al 80
+       .\deploy.ps1 -SiteName "CloneForge-Test"        # Nombre del sitio IIS
+       .\deploy.ps1 -Port 8080 -BackendPort 3002       # Puertos personalizados
+
+El script realiza automáticamente:
+  ✔ Verifica Node.js, IIS, URL Rewrite y ARR
+  ✔ Instala dependencias npm (backend y frontend)
+  ✔ Compila el frontend (npm run build)
+  ✔ Crea el archivo backend\.env si no existe
+  ✔ Crea el Application Pool "CloneForge" en IIS
+  ✔ Crea el sitio IIS apuntando a frontend\dist\
+  ✔ Asigna permisos de lectura al Application Pool sobre dist\
+  ✔ Instala PM2 y arranca el backend como proceso persistente
+
+────────────────────────────────────────
+ 2.2  Variables de entorno del backend
+────────────────────────────────────────
+
+El script crea automáticamente el archivo backend\.env. Su contenido:
+
+  PORT=3001
+  CORS_ORIGIN=http://localhost
+
+  - PORT        : Puerto donde Node.js escucha. Debe coincidir con el que
+                  el proxy de IIS apunta (por defecto 3001).
+  - CORS_ORIGIN : URL de origen del frontend (donde IIS sirve la SPA).
+                  Si usaste un puerto distinto al 80, pon http://localhost:PUERTO.
+
+  Si necesitas cambiarlo manualmente edita el archivo y reinicia el backend:
+    pm2 restart cloneforge-backend
+
+
+════════════════════════════════════════════════════════════════════════════════
+ PARTE 3 – DESPLIEGUE MANUAL (PASO A PASO)
+════════════════════════════════════════════════════════════════════════════════
+
+Si prefieres hacerlo sin el script, sigue estos pasos:
+
+────────────────────────────────────────
+ 3.1  Instalar dependencias
+────────────────────────────────────────
+
+  # Desde la carpeta raíz del proyecto
+  cd backend  &&  npm install --omit=dev
+  cd ..\frontend  &&  npm install
+
+────────────────────────────────────────
+ 3.2  Compilar el frontend
+────────────────────────────────────────
+
+  cd frontend
+  npm run build
+
+  Esto genera la carpeta frontend\dist\ con los archivos estáticos.
+  El archivo frontend\public\web.config se copia automáticamente a
+  frontend\dist\web.config durante el build.
+
+────────────────────────────────────────
+ 3.3  Crear el archivo .env del backend
+────────────────────────────────────────
+
+  Copia backend\.env.example → backend\.env y edita los valores:
+    PORT=3001
+    CORS_ORIGIN=http://localhost   (o el puerto que uses en IIS)
+
+────────────────────────────────────────
+ 3.4  Crear el sitio en IIS manualmente
+────────────────────────────────────────
+
+  1. Abre IIS Manager.
+  2. Clic derecho en "Sitios" → "Agregar sitio web".
+  3. Nombre del sitio: CloneForge
+  4. Grupo de aplicaciones: crea uno nuevo o usa DefaultAppPool.
+     IMPORTANTE: en las opciones avanzadas del pool, en "Versión de .NET
+     Framework" selecciona "Sin código administrado" (No Managed Code).
+  5. Ruta de acceso física: C:\ruta\al\proyecto\CloneForge\frontend\dist
+  6. Puerto: 80 (o el que elijas).
+  7. Haz clic en Aceptar.
+
+  Después asigna permisos:
+  - Abre PowerShell como admin:
+      $distPath = "C:\ruta\al\proyecto\CloneForge\frontend\dist"
+      icacls $distPath /grant "IIS AppPool\CloneForge:(OI)(CI)RX" /T
+
+────────────────────────────────────────
+ 3.5  Iniciar el backend
+────────────────────────────────────────
+
+  Opción A – Manual (solo para pruebas):
+    Ejecuta start-backend.bat (doble clic o desde terminal).
+    La ventana debe permanecer abierta mientras uses la aplicación.
+
+  Opción B – PM2 (recomendado, el proceso sobrevive cierres de terminal):
+    npm install -g pm2
+    cd backend
+    pm2 start src/index.js --name cloneforge-backend
+    pm2 save
+
+  Para que PM2 arranque automáticamente con Windows:
+    npm install -g pm2-windows-startup
+    pm2-startup install
+    (Sigue las instrucciones que muestra en consola)
+
+
+════════════════════════════════════════════════════════════════════════════════
+ PARTE 4 – VERIFICAR QUE TODO FUNCIONA
+════════════════════════════════════════════════════════════════════════════════
+
+  1. Verifica el backend:
+       Abre en el navegador: http://localhost:3001/api/health
+       Respuesta esperada: {"status":"ok"}
+
+  2. Verifica el frontend vía IIS:
+       Abre en el navegador: http://localhost
+       Debe cargar la interfaz de CloneForge.
+
+  3. Verifica el proxy /api:
+       Abre en el navegador: http://localhost/api/health
+       Respuesta esperada: {"status":"ok"}
+       (Esta es la misma llamada pero pasando por el proxy de IIS/ARR)
+
+  Si los puntos 1 y 2 funcionan pero el 3 falla, el problema está en ARR.
+  Revisa que "Enable proxy" esté activo (ver sección 1.4).
+
+
+════════════════════════════════════════════════════════════════════════════════
+ PARTE 5 – SOLUCIÓN DE PROBLEMAS FRECUENTES
+════════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: La página carga pero al hacer cualquier acción aparece "Network Error"
+  CAUSA   : El proxy /api no está funcionando. ARR no está configurado.
+  SOLUCIÓN: Revisa la sección 1.4. Asegúrate de que "Enable proxy" esté activo.
+
+PROBLEMA: Error 403 Forbidden al abrir el sitio
+  CAUSA   : El Application Pool no tiene permisos de lectura sobre dist\.
+  SOLUCIÓN: Corre en PowerShell (admin):
+              icacls "C:\...\frontend\dist" /grant "IIS AppPool\CloneForge:(OI)(CI)RX" /T
+
+PROBLEMA: Al recargar una página (F5) aparece Error 404
+  CAUSA   : URL Rewrite Module no está instalado o el web.config no está en dist\.
+  SOLUCIÓN:
+    1. Verifica que existe frontend\dist\web.config (debe generarse en el build).
+    2. Instala URL Rewrite Module (sección 1.3).
+
+PROBLEMA: El puerto 80 ya está ocupado
+  CAUSA   : Otro proceso (Skype, otro servidor) usa el puerto 80.
+  SOLUCIÓN: Despliega en un puerto alternativo:
+              .\deploy.ps1 -Port 8080
+            O detén el proceso que usa el puerto:
+              netstat -ano | findstr :80
+              taskkill /PID <PID> /F
+
+PROBLEMA: "ECONNREFUSED" en los logs del backend
+  CAUSA   : Error al conectar a SQL Server. La conexión la suministra el usuario
+            en la UI, no es una config del servidor.
+  SOLUCIÓN: Verifica que SQL Server esté activo y accesible desde la máquina
+            donde corre el backend. Prueba con SSMS primero.
+
+PROBLEMA: pm2 no reconocido como comando
+  CAUSA   : PM2 fue instalado pero el PATH no se actualizó en la sesión actual.
+  SOLUCIÓN: Cierra y vuelve a abrir PowerShell/CMD. O usa la ruta completa:
+              %APPDATA%\npm\pm2.cmd
+
+PROBLEMA: El script deploy.ps1 falla con "no se puede ejecutar scripts"
+  CAUSA   : PowerShell tiene restricción de ejecución.
+  SOLUCIÓN: Ejecuta antes:
+              Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+
+════════════════════════════════════════════════════════════════════════════════
+ PARTE 6 – ACTUALIZAR LA APLICACIÓN
+════════════════════════════════════════════════════════════════════════════════
+
+Cuando haya nuevas versiones del proyecto:
+
+  1. Obtén los últimos cambios:
+       git pull origin main
+
+  2. Vuelve a ejecutar el script (detecta el sitio existente y lo actualiza):
+       .\deploy.ps1
+
+  El script reconstruye el frontend y reinicia el backend automáticamente.
+  No borra ni sobreescribe el archivo .env.
+
+
+════════════════════════════════════════════════════════════════════════════════
+ PARTE 7 – ESTRUCTURA DE ARCHIVOS RELEVANTES
+════════════════════════════════════════════════════════════════════════════════
+
+CloneForge\
+├── deploy.ps1              ← Script de despliegue (este script)
+├── start-backend.bat       ← Inicio manual del backend (alternativa a PM2)
+├── INSTALACION.txt         ← Este documento
+├── backend\
+│   ├── .env                ← Creado por deploy.ps1 (no está en git)
+│   ├── .env.example        ← Plantilla de variables de entorno
+│   └── src\
+│       └── index.js        ← Punto de entrada del servidor Node.js
+└── frontend\
+    ├── public\
+    │   └── web.config      ← Configuración IIS (se copia a dist\ en el build)
+    ├── dist\               ← Generado por "npm run build" (no está en git)
+    │   ├── index.html
+    │   ├── web.config      ← Copia del anterior, sirve la SPA en IIS
+    │   └── assets\
+    └── src\                ← Código fuente del frontend
+
+
+════════════════════════════════════════════════════════════════════════════════
+ CONTACTO / SOPORTE
+════════════════════════════════════════════════════════════════════════════════
+
+  Repositorio: (ver el remote de git: git remote -v)
+  Issues     : Reporta problemas en el repositorio del proyecto.
+
+══════════════════════════════════════════════════════════════════════════════
