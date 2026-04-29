@@ -66,6 +66,14 @@ const useAppStore = create(
       setCloneLoading: (loading) => set({ cloneLoading: loading }),
       setShowResults: (show) => set({ showResults: show }),
 
+      // ── Data insert results ───────────────────────────────────────────────────
+      dataInsertResults: null,
+      dataInsertLoading: false,
+      showDataResults: false,
+      setDataInsertResults: (dataInsertResults) => set({ dataInsertResults }),
+      setDataInsertLoading: (dataInsertLoading) => set({ dataInsertLoading }),
+      setShowDataResults: (showDataResults) => set({ showDataResults }),
+
       // ── Toast notifications ───────────────────────────────────────────────────
       toast: null,
       showToast: (message, type = 'info') => {

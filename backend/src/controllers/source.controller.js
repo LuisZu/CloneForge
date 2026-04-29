@@ -39,4 +39,14 @@ async function getDDL(req, res) {
   res.json({ ddl });
 }
 
-module.exports = { testConnection, getObjects, getDDL };
+async function getTableRows(req, res) {
+  const { connection, schema, name, limit } = req.body;
+  if (!connection || !schema || !name) {
+    return res.status(400).json({ error: 'Faltan campos: connection, schema, name' });
+  }
+  const conn = validateConn(connection);
+  const result = await sourceService.getTableRows(conn, schema, name, limit);
+  res.json(result);
+}
+
+module.exports = { testConnection, getObjects, getDDL, getTableRows };

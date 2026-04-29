@@ -133,4 +133,63 @@ async function executeScripts(connConfig, scripts, destSchema, replacements = []
   });
 }
 
-module.exports = { testConnection, executeScripts, rewriteSchema };
+function formatSqlValue(val) {
+  if (val === null || val === undefined) return 'NULL';
+  if (typeof val === 'boolean') return val ? '1' : '0';
+  if (typeof val === 'number') return String(val);
+  if (Buffer.isBuffer(val)) return '0x' + val.toString('hex');
+  // Buffer serialized as JSON { type:'Buffer', data:[...] }
+  if (val && typeof val === 'object' && val.type === 'Buffer' && Array.isArray(val.data)) {
+    return '0x' + Buffer.from(val.data).toString('hex');
+  }
+  if (val instanceof Date) return `'${val.toISOString().slice(0, 23).replace('T', ' ')}'`;
+  // ISO string produced by JSON.stringify of a Date
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+    return `'${val.slice(0, 23).replace('T', ' ')}'`;
+  }
+  return `N'${String(val).replace(/'/g, "''")}'`;
+}
+
+async function insertRows(connConfig, tableSchema, tableName, destSchema, columns, rows) {
+  const targetSchema = destSchema || tableSchema;
+  const s = targetSchema.replace(/]/g, ']]');
+  const n = tableName.replace(/]/g, ']]');
+  const fullTable = `[${s}].[${n}]`;
+
+  // Computed columns cannot appear in INSERT column lists
+  const insertableCols = columns.filter((c) => !c.isComputed);
+  const hasIdentity    = insertableCols.some((c) => c.isIdentity);
+  const colList        = insertableCols.map((c) => `[${c.name.replace(/]/g, ']]')}]`).join(', ');
+
+  return withPool(connConfig, async (pool) => {
+    if (hasIdentity) {
+      await pool.request().query(`SET IDENTITY_INSERT ${fullTable} ON`);
+    }
+
+    const results = [];
+    let succeeded = 0;
+    let failed    = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row     = rows[i];
+      const values  = insertableCols.map((c) => formatSqlValue(row[c.name])).join(', ');
+      const sqlStmt = `INSERT INTO ${fullTable} (${colList}) VALUES (${values})`;
+      try {
+        await pool.request().query(sqlStmt);
+        succeeded++;
+        results.push({ row: i + 1, status: 'success' });
+      } catch (err) {
+        failed++;
+        results.push({ row: i + 1, status: 'error', error: err.message });
+      }
+    }
+
+    if (hasIdentity) {
+      try { await pool.request().query(`SET IDENTITY_INSERT ${fullTable} OFF`); } catch { /* ignore */ }
+    }
+
+    return { results, summary: { total: rows.length, succeeded, failed } };
+  });
+}
+
+module.exports = { testConnection, executeScripts, rewriteSchema, insertRows };

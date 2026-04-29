@@ -362,4 +362,43 @@ function formatType(col) {
   return `[${col.data_type}]`;
 }
 
-module.exports = { testConnection, getObjects, getDDL };
+async function getTableRows(connConfig, schema, name, limit = 1000) {
+  return withPool(connConfig, async (pool) => {
+    const metaResult = await pool.request()
+      .input('schema', sql.NVarChar, schema)
+      .input('name',   sql.NVarChar, name)
+      .query(`
+        SELECT
+          c.name                   AS column_name,
+          tp.name                  AS data_type,
+          c.is_nullable,
+          c.is_identity,
+          cc.definition            AS computed_definition
+        FROM sys.columns c
+        INNER JOIN sys.types tp ON c.user_type_id = tp.user_type_id
+        LEFT  JOIN sys.computed_columns cc
+               ON cc.object_id = c.object_id AND cc.column_id = c.column_id
+        WHERE c.object_id = OBJECT_ID(@schema + '.' + @name)
+        ORDER BY c.column_id
+      `);
+
+    const columns = metaResult.recordset.map((c) => ({
+      name:       c.column_name,
+      dataType:   c.data_type,
+      isNullable: !!c.is_nullable,
+      isIdentity: !!c.is_identity,
+      isComputed: !!c.computed_definition,
+    }));
+
+    const s = schema.replace(/]/g, ']]');
+    const n = name.replace(/]/g, ']]');
+    const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 1000), 5000);
+
+    const dataResult = await pool.request()
+      .query(`SELECT TOP ${safeLimit} * FROM [${s}].[${n}] WITH (NOLOCK)`);
+
+    return { columns, rows: dataResult.recordset };
+  });
+}
+
+module.exports = { testConnection, getObjects, getDDL, getTableRows };

@@ -24,6 +24,18 @@ export function testDestinationConnection(conn) {
   return api.post('/destination/test', conn).then((r) => r.data);
 }
 
+export function fetchTableRows(conn, schema, name, limit = 1000) {
+  return api
+    .post('/source/rows', { connection: conn, schema, name, limit })
+    .then((r) => r.data);
+}
+
+export function insertRows(conn, tableSchema, tableName, destSchema, columns, rows) {
+  return api
+    .post('/destination/insert-rows', { connection: conn, tableSchema, tableName, destSchema, columns, rows })
+    .then((r) => r.data);
+}
+
 export function executeScripts(conn, scripts, destSchema, replacements = [], overwrite = false) {
   return api
     .post('/destination/execute', {

@@ -39,4 +39,17 @@ async function executeScripts(req, res) {
   res.json(result);
 }
 
-module.exports = { testConnection, executeScripts };
+async function insertRows(req, res) {
+  const { connection, tableSchema, tableName, destSchema, columns, rows } = req.body;
+  if (!connection || !tableSchema || !tableName || !Array.isArray(columns) || !Array.isArray(rows)) {
+    return res.status(400).json({ error: 'Faltan campos: connection, tableSchema, tableName, columns[], rows[]' });
+  }
+  if (rows.length === 0) {
+    return res.status(400).json({ error: 'No hay filas para insertar' });
+  }
+  const conn = validateConn(connection);
+  const result = await destinationService.insertRows(conn, tableSchema, tableName, destSchema || null, columns, rows);
+  res.json(result);
+}
+
+module.exports = { testConnection, executeScripts, insertRows };
