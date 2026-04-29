@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Database } from 'lucide-react';
 import useAppStore from '../../store/appStore';
 import { useDataTransfer } from '../../hooks/useDataTransfer';
@@ -8,6 +9,7 @@ import DataResultsModal from './DataResultsModal';
 import InsertPreviewModal from './InsertPreviewModal';
 
 export default function DataTransferView() {
+  const rowGridRef = useRef();
   const { objects, sourceConnected, destConnected } = useAppStore();
   const tables = objects.filter((o) => o.type === 'TABLA');
   const { refresh, loading: refreshLoading } = useSourceConnection();
@@ -62,6 +64,7 @@ export default function DataTransferView() {
           </div>
         ) : rows.length > 0 ? (
           <RowGrid
+            ref={rowGridRef}
             columns={columns}
             rows={rows}
             onSelectionChange={setSelectedRows}
@@ -87,7 +90,7 @@ export default function DataTransferView() {
         script={previewScript}
         rowCount={selectedRows.length}
         onClose={closePreview}
-        onExecute={executeInsert}
+        onExecute={() => executeInsert(() => rowGridRef.current?.deselectAll())}
         executing={insertLoading}
       />
 

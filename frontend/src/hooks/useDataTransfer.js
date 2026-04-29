@@ -54,7 +54,7 @@ export function useDataTransfer() {
   }, [selectedTable, selectedRows, columns, destSchema]);
 
   // Step 2: execute the approved script on the destination database
-  const executeInsert = useCallback(async () => {
+  const executeInsert = useCallback(async (afterInsert) => {
     setDataInsertLoading(true);
     try {
       const result = await runScript(destConfig, previewScript);
@@ -65,6 +65,8 @@ export function useDataTransfer() {
         destSchema: destSchema || selectedTable.schema,
       });
       setShowDataResults(true);
+      setSelectedRows([]);
+      if (afterInsert) afterInsert();
     } catch (err) {
       showToast(err.response?.data?.error || err.message, 'error');
     } finally {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -13,8 +13,12 @@ function formatDisplayValue(value) {
   return String(value);
 }
 
-export default function RowGrid({ columns, rows, onSelectionChange }) {
+const RowGrid = forwardRef(function RowGrid({ columns, rows, onSelectionChange }, ref) {
   const gridRef = useRef();
+
+  useImperativeHandle(ref, () => ({
+    deselectAll: () => gridRef.current?.api?.deselectAll(),
+  }));
 
   const colDefs = useMemo(() => {
     if (!columns.length) return [];
@@ -73,4 +77,6 @@ export default function RowGrid({ columns, rows, onSelectionChange }) {
       />
     </div>
   );
-}
+});
+
+export default RowGrid;
