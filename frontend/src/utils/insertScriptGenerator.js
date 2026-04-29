@@ -40,6 +40,17 @@ function buildInsert(schema, tableName, columns, row) {
   return `INSERT INTO [${schema}].[${tableName}] (${colList}) VALUES (${values})`;
 }
 
+function buildEncTablaUdf(schema, tablaValue) {
+  const escaped = String(tablaValue).replace(/'/g, "''");
+  return (
+    `IF NOT EXISTS (SELECT 1 FROM [${schema}].[ENC_TABLA_UDF] WHERE TABLA = '${escaped}')\n` +
+    `BEGIN\n` +
+    `    INSERT INTO [${schema}].[ENC_TABLA_UDF](TABLA, NOTAS, TIPO, ETIQUETA)\n` +
+    `    VALUES('${escaped}', 'TABLA ${escaped}', 'E', '${escaped}')\n` +
+    `END`
+  );
+}
+
 function buildAlterTable(schema, row) {
   const tabla        = colVal(row, 'TABLA');
   const udf          = colVal(row, 'UDF');
@@ -88,11 +99,20 @@ export function generateInsertScript(table, columns, rows, destSchema) {
   const hasIdentity  = columns.some((c) => c.isIdentity);
 
   const batches = [];
+  const encTablaEmitted = new Set();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const lines = [];
 
+    if (udfMode) {
+      const tabla = colVal(row, 'TABLA');
+      if (tabla && !encTablaEmitted.has(tabla)) {
+        batches.push(buildEncTablaUdf(targetSchema, tabla));
+        encTablaEmitted.add(tabla);
+      }
+    }
+
+    const lines = [];
     if (hasIdentity) {
       lines.push(`SET IDENTITY_INSERT [${targetSchema}].[${table.name}] ON`);
     }
