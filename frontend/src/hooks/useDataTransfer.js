@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import useAppStore from '../store/appStore';
-import { fetchTableRows, insertRows as apiInsertRows } from '../api/cloneforge';
+import { fetchTableRows, runScript } from '../api/cloneforge';
+import { generateInsertScript } from '../utils/insertScriptGenerator';
 
 export function useDataTransfer() {
   const {
@@ -21,6 +22,8 @@ export function useDataTransfer() {
   const [rowsError, setRowsError]           = useState(null);
   const [selectedRows, setSelectedRows]     = useState([]);
   const [destSchema, setDestSchema]         = useState('');
+  const [previewScript, setPreviewScript]   = useState('');
+  const [previewOpen, setPreviewOpen]       = useState(false);
 
   const setSelectedTable = useCallback(async (table) => {
     _setSelectedTable(table);
@@ -42,18 +45,20 @@ export function useDataTransfer() {
     }
   }, [sourceConfig]);
 
-  const insert = useCallback(async () => {
+  // Step 1: generate the SQL preview and open the approval modal
+  const openPreview = useCallback(() => {
     if (!selectedTable || selectedRows.length === 0) return;
+    const script = generateInsertScript(selectedTable, columns, selectedRows, destSchema);
+    setPreviewScript(script);
+    setPreviewOpen(true);
+  }, [selectedTable, selectedRows, columns, destSchema]);
+
+  // Step 2: execute the approved script on the destination database
+  const executeInsert = useCallback(async () => {
     setDataInsertLoading(true);
     try {
-      const result = await apiInsertRows(
-        destConfig,
-        selectedTable.schema,
-        selectedTable.name,
-        destSchema || null,
-        columns,
-        selectedRows,
-      );
+      const result = await runScript(destConfig, previewScript);
+      setPreviewOpen(false);
       setDataInsertResults({
         ...result,
         tableName: selectedTable.name,
@@ -66,7 +71,7 @@ export function useDataTransfer() {
       setDataInsertLoading(false);
     }
   }, [
-    selectedTable, selectedRows, columns, destConfig, destSchema,
+    destConfig, previewScript, selectedTable, destSchema,
     setDataInsertLoading, setDataInsertResults, setShowDataResults, showToast,
   ]);
 
@@ -75,7 +80,11 @@ export function useDataTransfer() {
     columns, rows, rowsLoading, rowsError,
     selectedRows, setSelectedRows,
     destSchema, setDestSchema,
-    insert,
+    openPreview,
+    previewScript,
+    previewOpen,
+    closePreview: () => setPreviewOpen(false),
+    executeInsert,
     insertLoading: dataInsertLoading,
   };
 }

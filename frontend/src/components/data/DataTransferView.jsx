@@ -5,6 +5,7 @@ import { useSourceConnection } from '../../hooks/useSourceConnection';
 import DataToolbar from './DataToolbar';
 import RowGrid from './RowGrid';
 import DataResultsModal from './DataResultsModal';
+import InsertPreviewModal from './InsertPreviewModal';
 
 export default function DataTransferView() {
   const { objects, sourceConnected, destConnected } = useAppStore();
@@ -16,7 +17,12 @@ export default function DataTransferView() {
     columns, rows, rowsLoading, rowsError,
     selectedRows, setSelectedRows,
     destSchema, setDestSchema,
-    insert, insertLoading,
+    openPreview,
+    previewScript,
+    previewOpen,
+    closePreview,
+    executeInsert,
+    insertLoading,
   } = useDataTransfer();
 
   if (!sourceConnected) {
@@ -37,7 +43,7 @@ export default function DataTransferView() {
         destSchema={destSchema}
         onDestSchema={setDestSchema}
         selectedCount={selectedRows.length}
-        onInsert={insert}
+        onInsert={openPreview}
         insertLoading={insertLoading}
         destConnected={destConnected}
         rowCount={rows.length}
@@ -67,7 +73,7 @@ export default function DataTransferView() {
         ) : tables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
             <p className="text-sm">No hay tablas cargadas.</p>
-            <p className="text-xs">Usa el botón "Recargar" o carga objetos desde la pestaña Clonar Objetos.</p>
+            <p className="text-xs">Usa el botón "Refrescar Información" para cargarlas.</p>
           </div>
         ) : (
           <div className="flex items-center justify-center h-full text-slate-400 text-sm">
@@ -75,6 +81,15 @@ export default function DataTransferView() {
           </div>
         )}
       </div>
+
+      <InsertPreviewModal
+        open={previewOpen}
+        script={previewScript}
+        rowCount={selectedRows.length}
+        onClose={closePreview}
+        onExecute={executeInsert}
+        executing={insertLoading}
+      />
 
       <DataResultsModal />
     </div>

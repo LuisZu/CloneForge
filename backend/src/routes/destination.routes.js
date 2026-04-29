@@ -6,5 +6,6 @@ const router = Router();
 router.post('/test', ctrl.testConnection);
 router.post('/execute', ctrl.executeScripts);
 router.post('/insert-rows', ctrl.insertRows);
+router.post('/run-script', ctrl.runScript);
 
 module.exports = router;

@@ -52,4 +52,14 @@ async function insertRows(req, res) {
   res.json(result);
 }
 
-module.exports = { testConnection, executeScripts, insertRows };
+async function runScript(req, res) {
+  const { connection, script } = req.body;
+  if (!connection || !script || typeof script !== 'string' || !script.trim()) {
+    return res.status(400).json({ error: 'Faltan campos: connection y script' });
+  }
+  const conn = validateConn(connection);
+  const result = await destinationService.runScript(conn, script);
+  res.json(result);
+}
+
+module.exports = { testConnection, executeScripts, insertRows, runScript };

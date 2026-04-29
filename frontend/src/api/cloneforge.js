@@ -36,6 +36,12 @@ export function insertRows(conn, tableSchema, tableName, destSchema, columns, ro
     .then((r) => r.data);
 }
 
+export function runScript(conn, script) {
+  return api
+    .post('/destination/run-script', { connection: conn, script })
+    .then((r) => r.data);
+}
+
 export function executeScripts(conn, scripts, destSchema, replacements = [], overwrite = false) {
   return api
     .post('/destination/execute', {

@@ -192,4 +192,31 @@ async function insertRows(connConfig, tableSchema, tableName, destSchema, column
   });
 }
 
-module.exports = { testConnection, executeScripts, rewriteSchema, insertRows };
+async function runScript(connConfig, script) {
+  // Split on lines that contain only GO (case-insensitive), ignoring leading/trailing whitespace
+  const batches = script
+    .split(/^\s*GO\s*$/gim)
+    .map((b) => b.trim())
+    .filter(Boolean);
+
+  return withPool(connConfig, async (pool) => {
+    const results = [];
+    let succeeded = 0;
+    let failed    = 0;
+
+    for (let i = 0; i < batches.length; i++) {
+      try {
+        await pool.request().batch(batches[i]);
+        succeeded++;
+        results.push({ row: i + 1, status: 'success' });
+      } catch (err) {
+        failed++;
+        results.push({ row: i + 1, status: 'error', error: err.message });
+      }
+    }
+
+    return { results, summary: { total: batches.length, succeeded, failed } };
+  });
+}
+
+module.exports = { testConnection, executeScripts, rewriteSchema, insertRows, runScript };
