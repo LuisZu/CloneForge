@@ -227,7 +227,7 @@ export default function ObjectGrid() {
         overwriteExisting={overwriteExisting}
         onOverwriteExisting={setOverwriteExisting}
         selectedCount={selectedCount}
-        onClone={clone}
+        onClone={() => clone(() => gridRef.current?.api?.deselectAll())}
         cloneLoading={cloneLoading}
         destConnected={destConnected}
         onRefresh={refresh}

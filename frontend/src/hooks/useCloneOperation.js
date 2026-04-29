@@ -18,7 +18,7 @@ export function useCloneOperation() {
     showToast,
   } = useAppStore();
 
-  async function clone() {
+  async function clone(afterClone) {
     if (!selectedObjects.length) return;
     setCloneLoading(true);
 
@@ -79,6 +79,7 @@ export function useCloneOperation() {
         },
       });
       setShowResults(true);
+      if (afterClone) afterClone();
     } catch (err) {
       showToast(err.response?.data?.error || err.message, 'error');
     } finally {
