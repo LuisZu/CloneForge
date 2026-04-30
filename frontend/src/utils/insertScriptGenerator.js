@@ -69,6 +69,8 @@ function buildAlterTable(schema, row) {
     colType = `[varchar](${parseInt(largo, 10) || 50})`;
   } else if (tipoUp === 'N') {
     colType = '[decimal](18,4)';
+  } else if (tipoUp === 'F') {
+    colType = '[datetime]';
   } else {
     colType = `[varchar](${parseInt(largo, 10) || 50})`;
   }
