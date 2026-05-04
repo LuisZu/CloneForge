@@ -24,6 +24,7 @@ export function useDataTransfer() {
   const [destSchema, setDestSchema]         = useState('');
   const [previewScript, setPreviewScript]   = useState('');
   const [previewOpen, setPreviewOpen]       = useState(false);
+  const [exportSql, setExportSql]           = useState(null);
 
   const setSelectedTable = useCallback(async (table) => {
     _setSelectedTable(table);
@@ -45,12 +46,19 @@ export function useDataTransfer() {
     }
   }, [sourceConfig]);
 
-  // Step 1: generate the SQL preview and open the approval modal
+  // Step 1a: generate the SQL preview and open the approval modal
   const openPreview = useCallback(() => {
     if (!selectedTable || selectedRows.length === 0) return;
     const script = generateInsertScript(selectedTable, columns, selectedRows, destSchema);
     setPreviewScript(script);
     setPreviewOpen(true);
+  }, [selectedTable, selectedRows, columns, destSchema]);
+
+  // Step 1b: generate the script and open the export modal (no execution)
+  const openExport = useCallback(() => {
+    if (!selectedTable || selectedRows.length === 0) return;
+    const script = generateInsertScript(selectedTable, columns, selectedRows, destSchema);
+    setExportSql(script);
   }, [selectedTable, selectedRows, columns, destSchema]);
 
   // Step 2: execute the approved script on the destination database
@@ -88,5 +96,8 @@ export function useDataTransfer() {
     closePreview: () => setPreviewOpen(false),
     executeInsert,
     insertLoading: dataInsertLoading,
+    openExport,
+    exportSql,
+    closeExport: () => setExportSql(null),
   };
 }

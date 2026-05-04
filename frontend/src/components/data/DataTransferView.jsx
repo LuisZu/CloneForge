@@ -7,6 +7,7 @@ import DataToolbar from './DataToolbar';
 import RowGrid from './RowGrid';
 import DataResultsModal from './DataResultsModal';
 import InsertPreviewModal from './InsertPreviewModal';
+import ScriptExportModal from '../objects/ScriptExportModal';
 
 export default function DataTransferView() {
   const rowGridRef = useRef();
@@ -25,6 +26,9 @@ export default function DataTransferView() {
     closePreview,
     executeInsert,
     insertLoading,
+    openExport,
+    exportSql,
+    closeExport,
   } = useDataTransfer();
 
   if (!sourceConnected) {
@@ -47,6 +51,7 @@ export default function DataTransferView() {
         selectedCount={selectedRows.length}
         onInsert={openPreview}
         insertLoading={insertLoading}
+        onExport={openExport}
         destConnected={destConnected}
         rowCount={rows.length}
         onRefresh={refresh}
@@ -92,6 +97,12 @@ export default function DataTransferView() {
         onClose={closePreview}
         onExecute={() => executeInsert(() => rowGridRef.current?.deselectAll())}
         executing={insertLoading}
+      />
+
+      <ScriptExportModal
+        open={exportSql !== null}
+        sql={exportSql}
+        onClose={closeExport}
       />
 
       <DataResultsModal />
