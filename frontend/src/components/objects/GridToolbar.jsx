@@ -1,4 +1,4 @@
-import { Search, Copy, Loader2, RefreshCw } from 'lucide-react';
+import { Search, Copy, Download, Loader2, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import MultiSelectDropdown from '../ui/MultiSelectDropdown';
 
@@ -21,11 +21,14 @@ export default function GridToolbar({
   selectedCount,
   onClone,
   cloneLoading,
+  onExport,
+  exportLoading,
   destConnected,
   onRefresh,
   refreshLoading,
 }) {
-  const canClone = selectedCount > 0 && destConnected && !cloneLoading;
+  const canClone  = selectedCount > 0 && destConnected && !cloneLoading && !exportLoading;
+  const canExport = selectedCount > 0 && !cloneLoading && !exportLoading;
 
   return (
     <div className="flex flex-col gap-2 px-4 py-3 bg-white border-b border-slate-200">
@@ -149,27 +152,43 @@ export default function GridToolbar({
           </button>
         </div>
 
-        {/* Clone button */}
+        {/* Export + Clone buttons */}
         <div className="flex flex-col justify-end">
           {selectedCount > 0 && (
             <span className="text-xs text-slate-500 mb-1 text-right">
               <strong className="text-slate-700">{selectedCount}</strong> seleccionado{selectedCount !== 1 ? 's' : ''}
             </span>
           )}
-          <button
-            onClick={onClone}
-            disabled={!canClone}
-            title={!destConnected ? 'Conecte primero la base de datos destino' : ''}
-            className={clsx(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-              canClone
-                ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            )}
-          >
-            {cloneLoading ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
-            {cloneLoading ? 'Clonando...' : 'Clonar Seleccionados'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onExport}
+              disabled={!canExport}
+              title="Genera el script SQL sin ejecutarlo"
+              className={clsx(
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
+                canExport
+                  ? 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600'
+                  : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+              )}
+            >
+              {exportLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {exportLoading ? 'Generando...' : 'Exportar Script'}
+            </button>
+            <button
+              onClick={onClone}
+              disabled={!canClone}
+              title={!destConnected ? 'Conecte primero la base de datos destino' : ''}
+              className={clsx(
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                canClone
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              )}
+            >
+              {cloneLoading ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+              {cloneLoading ? 'Clonando...' : 'Clonar Seleccionados'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

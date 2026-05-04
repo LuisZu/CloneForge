@@ -1,9 +1,12 @@
-import { fetchDDL, executeScripts } from '../api/cloneforge';
+import { useState } from 'react';
+import { fetchDDL, executeScripts, exportScripts } from '../api/cloneforge';
 import useAppStore from '../store/appStore';
 
 const BATCH_SIZE = 5;
 
 export function useCloneOperation() {
+  const [exportLoading, setExportLoading] = useState(false);
+
   const {
     sourceConfig,
     destConfig,
@@ -87,5 +90,32 @@ export function useCloneOperation() {
     }
   }
 
-  return { clone };
+  async function exportScript(onSql) {
+    if (!selectedObjects.length) return;
+    setExportLoading(true);
+    try {
+      const scriptsWithDDL = [];
+      for (let i = 0; i < selectedObjects.length; i += BATCH_SIZE) {
+        const batch = selectedObjects.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+          batch.map((obj) =>
+            fetchDDL(sourceConfig, obj, obj.type === 'TABLA' ? includeData : false)
+              .then((ddl) => ({ ...obj, ddl }))
+          )
+        );
+        for (const r of results) {
+          if (r.status === 'fulfilled') scriptsWithDDL.push(r.value);
+        }
+      }
+      const activeReplacements = textReplacements.filter((r) => r.find.trim());
+      const sql = await exportScripts(scriptsWithDDL, destSchema, activeReplacements, overwriteExisting);
+      if (onSql) onSql(sql);
+    } catch (err) {
+      showToast(err.response?.data?.error || err.message, 'error');
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  return { clone, exportScript, exportLoading };
 }

@@ -42,6 +42,17 @@ export function runScript(conn, script) {
     .then((r) => r.data);
 }
 
+export function exportScripts(scripts, destSchema, replacements = [], overwrite = false) {
+  return api
+    .post('/destination/export-scripts', {
+      scripts,
+      destSchema: destSchema || null,
+      replacements,
+      overwrite,
+    })
+    .then((r) => r.data.sql);
+}
+
 export function executeScripts(conn, scripts, destSchema, replacements = [], overwrite = false) {
   return api
     .post('/destination/execute', {

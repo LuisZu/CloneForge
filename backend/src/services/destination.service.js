@@ -55,6 +55,34 @@ function getDropStatement(type, schema, name) {
   }
 }
 
+function exportScripts(scripts, destSchema, replacements = [], overwrite = false) {
+  const sorted = [...scripts].sort((a, b) =>
+    (TYPE_ORDER.indexOf(a.type) ?? 99) - (TYPE_ORDER.indexOf(b.type) ?? 99)
+  );
+
+  const parts = [];
+  for (const script of sorted) {
+    const targetSchema = destSchema || script.schema;
+    const rawDdl = applyReplacements(
+      destSchema ? rewriteSchema(script.ddl, script.schema, destSchema) : script.ddl,
+      replacements
+    ).trim();
+
+    parts.push(`-- ${script.type}: [${targetSchema}].[${script.name}]`);
+
+    if (script.type !== 'TABLA' && overwrite) {
+      const dropSql = getDropStatement(script.type, targetSchema, script.name);
+      if (dropSql) { parts.push(dropSql); parts.push('GO'); }
+    }
+
+    parts.push(rawDdl);
+    parts.push('GO');
+    parts.push('');
+  }
+
+  return { sql: parts.join('\n') };
+}
+
 async function executeScripts(connConfig, scripts, destSchema, replacements = [], overwrite = false) {
   // Sort: TABLA first, TRIGGER last
   const sorted = [...scripts].sort((a, b) => {
@@ -219,4 +247,4 @@ async function runScript(connConfig, script) {
   });
 }
 
-module.exports = { testConnection, executeScripts, rewriteSchema, insertRows, runScript };
+module.exports = { testConnection, exportScripts, executeScripts, rewriteSchema, insertRows, runScript };

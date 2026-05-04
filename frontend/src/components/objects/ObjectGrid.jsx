@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import ScriptExportModal from './ScriptExportModal';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -52,7 +53,8 @@ export default function ObjectGrid() {
     sourceConfig,
   } = useAppStore();
 
-  const { clone } = useCloneOperation();
+  const [exportSql, setExportSql] = useState(null);
+  const { clone, exportScript, exportLoading } = useCloneOperation();
   const { refresh, loading: refreshLoading } = useSourceConnection();
   const selectedCount = useAppStore((s) => s.selectedObjects.length);
 
@@ -229,6 +231,8 @@ export default function ObjectGrid() {
         selectedCount={selectedCount}
         onClone={() => clone(() => gridRef.current?.api?.deselectAll())}
         cloneLoading={cloneLoading}
+        onExport={() => exportScript((sql) => setExportSql(sql))}
+        exportLoading={exportLoading}
         destConnected={destConnected}
         onRefresh={refresh}
         refreshLoading={refreshLoading}
@@ -262,6 +266,12 @@ export default function ObjectGrid() {
           />
         )}
       </div>
+
+      <ScriptExportModal
+        open={exportSql !== null}
+        sql={exportSql}
+        onClose={() => setExportSql(null)}
+      />
 
       <ScriptPreviewModal
         object={previewObj}

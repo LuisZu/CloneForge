@@ -23,6 +23,20 @@ async function testConnection(req, res) {
   res.json(result);
 }
 
+async function exportScripts(req, res) {
+  const { scripts, destSchema, replacements, overwrite } = req.body;
+  if (!Array.isArray(scripts) || scripts.length === 0) {
+    return res.status(400).json({ error: 'Falta campo: scripts[]' });
+  }
+  const result = destinationService.exportScripts(
+    scripts,
+    destSchema || null,
+    Array.isArray(replacements) ? replacements : [],
+    overwrite === true
+  );
+  res.json(result);
+}
+
 async function executeScripts(req, res) {
   const { connection, scripts, destSchema, replacements, overwrite } = req.body;
   if (!connection || !Array.isArray(scripts) || scripts.length === 0) {
@@ -62,4 +76,4 @@ async function runScript(req, res) {
   res.json(result);
 }
 
-module.exports = { testConnection, executeScripts, insertRows, runScript };
+module.exports = { testConnection, exportScripts, executeScripts, insertRows, runScript };
