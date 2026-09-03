@@ -13,7 +13,7 @@ import ScriptPreviewModal from './ScriptPreviewModal';
 import { useCloneOperation } from '../../hooks/useCloneOperation';
 import { useSourceConnection } from '../../hooks/useSourceConnection';
 
-const TYPE_ALL = ['SP', 'VISTA', 'TABLA', 'FUNCION', 'TRIGGER'];
+const TYPE_ALL = ['SP', 'VISTA', 'TABLA', 'FUNCION', 'TRIGGER', 'INDICE'];
 
 function TypeBadgeCellRenderer({ value }) {
   return <TypeBadge type={value} />;

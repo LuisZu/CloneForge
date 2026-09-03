@@ -12,16 +12,32 @@ export function fetchObjects(conn) {
   return api.post('/source/objects', conn).then((r) => r.data.objects);
 }
 
-export function fetchDDL(conn, { schema, name, type }, includeData = false) {
+export function fetchDDL(conn, { schema, name, type, table, indexName }, includeData = false) {
   return api
-    .post('/source/ddl', { connection: conn, schema, name, type, includeData })
+    .post('/source/ddl', { connection: conn, schema, name, type, includeData, table, indexName })
     .then((r) => r.data.ddl);
+}
+
+export function fetchSourceColumns(conn, schema, name) {
+  return api
+    .post('/source/columns', { connection: conn, schema, name })
+    .then((r) => r.data.columns);
 }
 
 // ── Destination ───────────────────────────────────────────────────────────────
 
 export function testDestinationConnection(conn) {
   return api.post('/destination/test', conn).then((r) => r.data);
+}
+
+export function fetchDestinationObjects(conn) {
+  return api.post('/destination/objects', conn).then((r) => r.data.objects);
+}
+
+export function fetchDestinationColumns(conn, schema, name) {
+  return api
+    .post('/destination/columns', { connection: conn, schema, name })
+    .then((r) => r.data.columns);
 }
 
 export function fetchTableRows(conn, schema, name, limit = 1000) {

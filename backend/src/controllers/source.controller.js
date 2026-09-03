@@ -30,13 +30,26 @@ async function getObjects(req, res) {
 }
 
 async function getDDL(req, res) {
-  const { connection, schema, name, type, includeData } = req.body;
+  const { connection, schema, name, type, includeData, table, indexName } = req.body;
   if (!connection || !schema || !name || !type) {
     return res.status(400).json({ error: 'Faltan campos: connection, schema, name, type' });
   }
+  if (type === 'INDICE' && (!table || !indexName)) {
+    return res.status(400).json({ error: 'Faltan campos: table, indexName para el tipo INDICE' });
+  }
   const conn = validateConn(connection);
-  const ddl = await sourceService.getDDL(conn, schema, name, type, !!includeData);
+  const ddl = await sourceService.getDDL(conn, schema, name, type, !!includeData, { table, indexName });
   res.json({ ddl });
+}
+
+async function getTableColumns(req, res) {
+  const { connection, schema, name } = req.body;
+  if (!connection || !schema || !name) {
+    return res.status(400).json({ error: 'Faltan campos: connection, schema, name' });
+  }
+  const conn = validateConn(connection);
+  const columns = await sourceService.getTableColumns(conn, schema, name);
+  res.json({ columns });
 }
 
 async function getTableRows(req, res) {
@@ -49,4 +62,4 @@ async function getTableRows(req, res) {
   res.json(result);
 }
 
-module.exports = { testConnection, getObjects, getDDL, getTableRows };
+module.exports = { testConnection, getObjects, getDDL, getTableColumns, getTableRows };

@@ -6,6 +6,7 @@ const TYPE_LABEL = {
   TABLA: 'Tabla',
   FUNCION: 'Función',
   TRIGGER: 'Trigger',
+  INDICE: 'Índice',
 };
 
 async function testConnection(connConfig) {
@@ -41,7 +42,7 @@ async function getObjects(connConfig) {
       ORDER BY [type], s.name, o.name
     `);
 
-    return result.recordset.map((row) => ({
+    const objects = result.recordset.map((row) => ({
       id: `${row.schema}.${row.name}__${row.rawType.trim()}`,
       schema: row.schema,
       name: row.name,
@@ -49,13 +50,47 @@ async function getObjects(connConfig) {
       typeLabel: TYPE_LABEL[row.type] || row.type,
       modifiedAt: row.modifiedAt,
     }));
+
+    const idxResult = await pool.request().query(`
+      SELECT
+        s.name        AS [schema],
+        t.name        AS [tableName],
+        i.name        AS [indexName],
+        t.modify_date AS [modifiedAt]
+      FROM sys.indexes i
+      INNER JOIN sys.tables t ON t.object_id = i.object_id
+      INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+      WHERE i.is_primary_key = 0
+        AND i.is_unique_constraint = 0
+        AND i.type > 0
+        AND i.name IS NOT NULL
+        AND t.is_ms_shipped = 0
+      ORDER BY s.name, t.name, i.name
+    `);
+
+    const indexes = idxResult.recordset.map((row) => ({
+      id: `${row.schema}.${row.tableName}.${row.indexName}__INDEX`,
+      schema: row.schema,
+      name: `${row.tableName}.${row.indexName}`,
+      type: 'INDICE',
+      typeLabel: TYPE_LABEL.INDICE,
+      modifiedAt: row.modifiedAt,
+      table: row.tableName,
+      indexName: row.indexName,
+    }));
+
+    return [...objects, ...indexes];
   });
 }
 
-async function getDDL(connConfig, schema, name, type, includeData = false) {
+async function getDDL(connConfig, schema, name, type, includeData = false, extra = {}) {
   return withPool(connConfig, async (pool) => {
     if (type === 'TABLA') {
       return buildTableDDL(pool, schema, name, includeData);
+    }
+
+    if (type === 'INDICE') {
+      return buildIndexOnlyDDL(pool, schema, extra.table, extra.indexName);
     }
 
     const result = await pool.request()
@@ -87,9 +122,9 @@ function normalizeDdl(ddl) {
     .replace(/\bCREATE\s+OR\s+ALTER\s+VIEW\b/gi,      'CREATE VIEW');
 }
 
-async function buildTableDDL(pool, schema, name, includeData) {
-  // ── 1. Columns ──────────────────────────────────────────────────────────────
-  const colsResult = await pool.request()
+/** Shared column metadata query used by table DDL generation and column comparison. */
+async function queryColumns(pool, schema, name) {
+  const result = await pool.request()
     .input('schema', sql.NVarChar, schema)
     .input('name',   sql.NVarChar, name)
     .query(`
@@ -117,6 +152,29 @@ async function buildTableDDL(pool, schema, name, includeData) {
       WHERE c.object_id = OBJECT_ID(@schema + '.' + @name)
       ORDER BY c.column_id
     `);
+  return result.recordset;
+}
+
+async function getTableColumns(connConfig, schema, name) {
+  return withPool(connConfig, async (pool) => {
+    const cols = await queryColumns(pool, schema, name);
+    return cols.map((col) => ({
+      name: col.column_name,
+      dataType: formatType(col),
+      isNullable: !!col.is_nullable,
+      isIdentity: !!col.is_identity,
+      seedValue: col.seed_value,
+      incrementValue: col.increment_value,
+      isComputed: !!col.computed_definition,
+      computedDefinition: col.computed_definition || null,
+      defaultValue: col.default_definition || null,
+    }));
+  });
+}
+
+async function buildTableDDL(pool, schema, name, includeData) {
+  // ── 1. Columns ──────────────────────────────────────────────────────────────
+  const cols = await queryColumns(pool, schema, name);
 
   // ── 2. Primary Key ──────────────────────────────────────────────────────────
   const pkResult = await pool.request()
@@ -183,7 +241,6 @@ async function buildTableDDL(pool, schema, name, includeData) {
       ORDER BY fk.name, fkc.constraint_column_id
     `);
 
-  const cols   = colsResult.recordset;
   const pkRows = pkResult.recordset;
   const idxRows = idxResult.recordset;
   const fkRows  = fkResult.recordset;
@@ -304,6 +361,79 @@ async function buildTableDDL(pool, schema, name, includeData) {
   return parts.join('\n\n');
 }
 
+/** Generates a standalone CREATE INDEX script for a single index, guarded by IF NOT EXISTS. */
+async function buildIndexOnlyDDL(pool, schema, tableName, indexName) {
+  if (!tableName || !indexName) {
+    throw Object.assign(
+      new Error('Faltan datos de la tabla o el índice para generar el script.'),
+      { status: 400 }
+    );
+  }
+
+  const idxResult = await pool.request()
+    .input('schema', sql.NVarChar, schema)
+    .input('name', sql.NVarChar, tableName)
+    .input('indexName', sql.NVarChar, indexName)
+    .query(`
+      SELECT i.name            AS index_name,
+             i.type_desc,
+             i.is_unique,
+             c.name            AS column_name,
+             ic.key_ordinal,
+             ic.is_descending_key,
+             ic.is_included_column
+      FROM sys.indexes i
+      INNER JOIN sys.index_columns ic
+             ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+      INNER JOIN sys.columns c
+             ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+      WHERE i.object_id       = OBJECT_ID(@schema + '.' + @name)
+        AND i.name            = @indexName
+        AND i.is_primary_key  = 0
+        AND i.is_unique_constraint = 0
+        AND i.type            > 0
+      ORDER BY ic.key_ordinal
+    `);
+
+  const idxRows = idxResult.recordset;
+  if (idxRows.length === 0) {
+    throw Object.assign(
+      new Error(`No se encontró el índice "${indexName}" en la tabla "${schema}.${tableName}".`),
+      { status: 422 }
+    );
+  }
+
+  const keyCols = [];
+  const includedCols = [];
+  for (const row of idxRows) {
+    if (row.is_included_column) {
+      includedCols.push(row.column_name);
+    } else {
+      keyCols.push(`[${row.column_name}]${row.is_descending_key ? ' DESC' : ''}`);
+    }
+  }
+
+  const unique = idxRows[0].is_unique ? 'UNIQUE ' : '';
+  const typeDesc = idxRows[0].type_desc === 'CLUSTERED' ? 'CLUSTERED ' : 'NONCLUSTERED ';
+
+  let stmt =
+    `-- ============================================================\n` +
+    `-- INDICE: [${indexName}] sobre [${schema}].[${tableName}]\n` +
+    `-- ============================================================\n` +
+    `IF NOT EXISTS (\n` +
+    `  SELECT 1 FROM sys.indexes\n` +
+    `  WHERE object_id = OBJECT_ID(N'[${schema}].[${tableName}]') AND name = N'${indexName}'\n` +
+    `)\n` +
+    `CREATE ${unique}${typeDesc}INDEX [${indexName}]\n` +
+    `    ON [${schema}].[${tableName}] (${keyCols.join(', ')})`;
+
+  if (includedCols.length > 0) {
+    stmt += `\n    INCLUDE (${includedCols.map((c) => `[${c}]`).join(', ')})`;
+  }
+
+  return stmt;
+}
+
 function formatRefAction(desc) {
   if (!desc || desc === 'NO_ACTION') return 'NO ACTION';
   return desc.replace(/_/g, ' ');
@@ -401,4 +531,4 @@ async function getTableRows(connConfig, schema, name, limit = 1000) {
   });
 }
 
-module.exports = { testConnection, getObjects, getDDL, getTableRows };
+module.exports = { testConnection, getObjects, getDDL, getTableColumns, getTableRows };

@@ -1,5 +1,6 @@
 const Joi = require('joi');
 const destinationService = require('../services/destination.service');
+const sourceService = require('../services/source.service');
 
 const connSchema = Joi.object({
   server: Joi.string().required(),
@@ -21,6 +22,22 @@ async function testConnection(req, res) {
   const conn = validateConn(req.body);
   const result = await destinationService.testConnection(conn);
   res.json(result);
+}
+
+async function getObjects(req, res) {
+  const conn = validateConn(req.body);
+  const objects = await sourceService.getObjects(conn);
+  res.json({ objects });
+}
+
+async function getTableColumns(req, res) {
+  const { connection, schema, name } = req.body;
+  if (!connection || !schema || !name) {
+    return res.status(400).json({ error: 'Faltan campos: connection, schema, name' });
+  }
+  const conn = validateConn(connection);
+  const columns = await sourceService.getTableColumns(conn, schema, name);
+  res.json({ columns });
 }
 
 async function exportScripts(req, res) {
@@ -76,4 +93,4 @@ async function runScript(req, res) {
   res.json(result);
 }
 
-module.exports = { testConnection, exportScripts, executeScripts, insertRows, runScript };
+module.exports = { testConnection, getObjects, getTableColumns, exportScripts, executeScripts, insertRows, runScript };

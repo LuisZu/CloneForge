@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Play, FileCode, AlertTriangle } from 'lucide-react';
 
-export default function InsertPreviewModal({ open, script, rowCount, onClose, onExecute, executing }) {
+export default function InsertPreviewModal({ open, script, rowCount, onClose, onExecute, executing, itemLabel = 'fila' }) {
   return (
     <Dialog.Root open={open} onOpenChange={(v) => { if (!v && !executing) onClose(); }}>
       <Dialog.Portal>
@@ -18,7 +18,7 @@ export default function InsertPreviewModal({ open, script, rowCount, onClose, on
               Vista Previa del Script
             </Dialog.Title>
             <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">
-              {rowCount} {rowCount === 1 ? 'fila' : 'filas'} seleccionada{rowCount !== 1 ? 's' : ''}
+              {rowCount} {rowCount === 1 ? itemLabel : `${itemLabel}s`} seleccionada{rowCount !== 1 ? 's' : ''}
             </span>
             {!executing && (
               <Dialog.Close

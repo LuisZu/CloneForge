@@ -1,6 +1,6 @@
 const { withPool, sql } = require('../config/db');
 
-const TYPE_ORDER = ['TABLA', 'FUNCION', 'VISTA', 'SP', 'TRIGGER'];
+const TYPE_ORDER = ['TABLA', 'INDICE', 'FUNCION', 'VISTA', 'SP', 'TRIGGER'];
 
 async function testConnection(connConfig) {
   return withPool(connConfig, async (pool) => {
@@ -55,6 +55,14 @@ function getDropStatement(type, schema, name) {
   }
 }
 
+/** Returns a DROP INDEX IF EXISTS statement for an index on a given table. */
+function getIndexDropStatement(schema, tableName, indexName) {
+  const s = schema.replace(/]/g, ']]');
+  const t = tableName.replace(/]/g, ']]');
+  const i = indexName.replace(/]/g, ']]');
+  return `DROP INDEX IF EXISTS [${i}] ON [${s}].[${t}]`;
+}
+
 function exportScripts(scripts, destSchema, replacements = [], overwrite = false) {
   const sorted = [...scripts].sort((a, b) =>
     (TYPE_ORDER.indexOf(a.type) ?? 99) - (TYPE_ORDER.indexOf(b.type) ?? 99)
@@ -68,9 +76,16 @@ function exportScripts(scripts, destSchema, replacements = [], overwrite = false
       replacements
     ).trim();
 
-    parts.push(`-- ${script.type}: [${targetSchema}].[${script.name}]`);
+    if (script.type === 'INDICE') {
+      parts.push(`-- INDICE: [${targetSchema}].[${script.table}] -> [${script.indexName}]`);
+    } else {
+      parts.push(`-- ${script.type}: [${targetSchema}].[${script.name}]`);
+    }
 
-    if (script.type !== 'TABLA' && overwrite) {
+    if (overwrite && script.type === 'INDICE' && script.table && script.indexName) {
+      const dropIdxSql = getIndexDropStatement(targetSchema, script.table, script.indexName);
+      parts.push(dropIdxSql); parts.push('GO');
+    } else if (script.type !== 'TABLA' && script.type !== 'INDICE' && overwrite) {
       const dropSql = getDropStatement(script.type, targetSchema, script.name);
       if (dropSql) { parts.push(dropSql); parts.push('GO'); }
     }
@@ -101,9 +116,14 @@ async function executeScripts(connConfig, scripts, destSchema, replacements = []
           replacements
         );
 
-        if (script.type === 'TABLA') {
-          // Tables may produce multiple statements (CREATE TABLE + indexes + FKs + data).
-          // Split on blank lines and execute each statement individually so errors are precise.
+        if (script.type === 'TABLA' || script.type === 'INDICE') {
+          if (script.type === 'INDICE' && overwrite && script.table && script.indexName) {
+            const targetSchema = destSchema || script.schema;
+            await pool.request().batch(getIndexDropStatement(targetSchema, script.table, script.indexName));
+          }
+          // Tables (and single-index scripts) may produce multiple statements
+          // (CREATE TABLE + indexes + FKs + data). Split on blank lines and
+          // execute each statement individually so errors are precise.
           const stmts = rawDdl
             .split(/\n\s*\n/)
             .map((s) => s.trim())

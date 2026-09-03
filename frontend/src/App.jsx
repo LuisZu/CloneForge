@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { GitBranch, Copy, Table2 } from 'lucide-react';
+import { GitBranch, Copy, Table2, GitCompare, Columns3 } from 'lucide-react';
 import clsx from 'clsx';
 import ConnectionForm from './components/connection/ConnectionForm';
 import ObjectGrid from './components/objects/ObjectGrid';
 import DataTransferView from './components/data/DataTransferView';
+import CompareObjectsView from './components/compare/CompareObjectsView';
+import CompareColumnsView from './components/compare/CompareColumnsView';
 import ResultsModal from './components/results/ResultsModal';
 import TextReplacements from './components/replacements/TextReplacements';
 import CloningOverlay from './components/CloningOverlay';
@@ -13,9 +15,46 @@ import { useSourceConnection } from './hooks/useSourceConnection';
 import { useDestConnection } from './hooks/useDestConnection';
 
 const TABS = [
-  { id: 'objects', label: 'Clonar Objetos', icon: Copy },
-  { id: 'data',    label: 'Insertar Datos', icon: Table2 },
+  { id: 'objects',        label: 'Clonar Objetos',   icon: Copy },
+  { id: 'compareObjects', label: 'Comparar Objetos', icon: GitCompare },
+  { id: 'data',           label: 'Insertar Datos',   icon: Table2 },
+  { id: 'compareColumns', label: 'Comparar Campos',  icon: Columns3 },
 ];
+
+const TAB_VIEWS = {
+  objects: ObjectGrid,
+  compareObjects: CompareObjectsView,
+  data: DataTransferView,
+  compareColumns: CompareColumnsView,
+};
+
+const TAB_INSTRUCTIONS = {
+  objects: [
+    'Conectar base de datos Origen',
+    'Seleccionar objetos a clonar',
+    'Conectar base de datos Destino',
+    'Presionar "Clonar Seleccionados"',
+  ],
+  compareObjects: [
+    'Conectar ambas bases de datos',
+    'Presionar "Comparar"',
+    'Revisar los objetos que faltan en Destino',
+    'Seleccionarlos y presionar "Clonar Faltantes hacia Destino"',
+  ],
+  data: [
+    'Conectar base de datos Origen',
+    'Seleccionar una tabla del listado',
+    'Seleccionar las filas a insertar',
+    'Conectar base de datos Destino',
+    'Presionar "Insertar"',
+  ],
+  compareColumns: [
+    'Conectar ambas bases de datos',
+    'Seleccionar una tabla y presionar "Comparar Campos"',
+    'Revisar los campos que faltan en Destino',
+    'Seleccionarlos y presionar "Agregar Campos a Destino"',
+  ],
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('objects');
@@ -80,28 +119,14 @@ export default function App() {
 
           {activeTab === 'objects' && <TextReplacements />}
 
-          {activeTab === 'objects' ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700 space-y-1">
-              <p className="font-semibold">Flujo de trabajo:</p>
-              <ol className="list-decimal list-inside space-y-1 text-blue-600">
-                <li>Conectar base de datos Origen</li>
-                <li>Seleccionar objetos a clonar</li>
-                <li>Conectar base de datos Destino</li>
-                <li>Presionar "Clonar Seleccionados"</li>
-              </ol>
-            </div>
-          ) : (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700 space-y-1">
-              <p className="font-semibold">Flujo de trabajo:</p>
-              <ol className="list-decimal list-inside space-y-1 text-blue-600">
-                <li>Conectar base de datos Origen</li>
-                <li>Seleccionar una tabla del listado</li>
-                <li>Seleccionar las filas a insertar</li>
-                <li>Conectar base de datos Destino</li>
-                <li>Presionar "Insertar"</li>
-              </ol>
-            </div>
-          )}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700 space-y-1">
+            <p className="font-semibold">Flujo de trabajo:</p>
+            <ol className="list-decimal list-inside space-y-1 text-blue-600">
+              {TAB_INSTRUCTIONS[activeTab].map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </div>
         </aside>
 
         {/* Main area */}
@@ -128,7 +153,10 @@ export default function App() {
 
           {/* Tab content */}
           <div className="flex-1" style={{ minHeight: 0 }}>
-            {activeTab === 'objects' ? <ObjectGrid /> : <DataTransferView />}
+            {(() => {
+              const ActiveView = TAB_VIEWS[activeTab];
+              return <ActiveView />;
+            })()}
           </div>
         </main>
       </div>

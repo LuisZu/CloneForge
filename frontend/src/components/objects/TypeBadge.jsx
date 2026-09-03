@@ -4,6 +4,7 @@ const TYPE_STYLES = {
   TABLA:   'bg-amber-100 text-amber-700',
   FUNCION: 'bg-green-100 text-green-700',
   TRIGGER: 'bg-rose-100 text-rose-700',
+  INDICE:  'bg-cyan-100 text-cyan-700',
 };
 
 const TYPE_LABEL = {
@@ -12,6 +13,7 @@ const TYPE_LABEL = {
   TABLA:   'Tabla',
   FUNCION: 'Función',
   TRIGGER: 'Trigger',
+  INDICE:  'Índice',
 };
 
 export default function TypeBadge({ type }) {
