@@ -8,5 +8,6 @@ router.post('/objects', ctrl.getObjects);
 router.post('/ddl', ctrl.getDDL);
 router.post('/columns', ctrl.getTableColumns);
 router.post('/rows', ctrl.getTableRows);
+router.post('/schemas', ctrl.getSchemas);
 
 module.exports = router;

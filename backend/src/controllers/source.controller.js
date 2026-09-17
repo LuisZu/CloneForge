@@ -42,6 +42,12 @@ async function getDDL(req, res) {
   res.json({ ddl });
 }
 
+async function getSchemas(req, res) {
+  const conn = validateConn(req.body);
+  const schemas = await sourceService.getSchemas(conn);
+  res.json({ schemas });
+}
+
 async function getTableColumns(req, res) {
   const { connection, schema, name } = req.body;
   if (!connection || !schema || !name) {
@@ -62,4 +68,4 @@ async function getTableRows(req, res) {
   res.json(result);
 }
 
-module.exports = { testConnection, getObjects, getDDL, getTableColumns, getTableRows };
+module.exports = { testConnection, getObjects, getDDL, getTableColumns, getTableRows, getSchemas };

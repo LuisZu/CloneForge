@@ -18,6 +18,24 @@ async function testConnection(connConfig) {
   });
 }
 
+const SYSTEM_SCHEMAS = [
+  'sys', 'INFORMATION_SCHEMA', 'guest',
+  'db_owner', 'db_accessadmin', 'db_securityadmin', 'db_ddladmin',
+  'db_backupoperator', 'db_datareader', 'db_datawriter',
+  'db_denydatareader', 'db_denydatawriter',
+];
+
+async function getSchemas(connConfig) {
+  return withPool(connConfig, async (pool) => {
+    const result = await pool.request().query(`
+      SELECT name FROM sys.schemas
+      WHERE name NOT IN (${SYSTEM_SCHEMAS.map((s) => `'${s}'`).join(',')})
+      ORDER BY name
+    `);
+    return result.recordset.map((r) => r.name);
+  });
+}
+
 async function getObjects(connConfig) {
   return withPool(connConfig, async (pool) => {
     const result = await pool.request().query(`
@@ -531,4 +549,4 @@ async function getTableRows(connConfig, schema, name, limit = 1000) {
   });
 }
 
-module.exports = { testConnection, getObjects, getDDL, getTableColumns, getTableRows };
+module.exports = { testConnection, getObjects, getDDL, getTableColumns, getTableRows, getSchemas };

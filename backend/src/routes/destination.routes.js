@@ -6,6 +6,7 @@ const router = Router();
 router.post('/test', ctrl.testConnection);
 router.post('/objects', ctrl.getObjects);
 router.post('/columns', ctrl.getTableColumns);
+router.post('/schemas', ctrl.getSchemas);
 router.post('/export-scripts', ctrl.exportScripts);
 router.post('/execute', ctrl.executeScripts);
 router.post('/insert-rows', ctrl.insertRows);

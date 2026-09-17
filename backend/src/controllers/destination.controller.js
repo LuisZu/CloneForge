@@ -30,6 +30,12 @@ async function getObjects(req, res) {
   res.json({ objects });
 }
 
+async function getSchemas(req, res) {
+  const conn = validateConn(req.body);
+  const schemas = await sourceService.getSchemas(conn);
+  res.json({ schemas });
+}
+
 async function getTableColumns(req, res) {
   const { connection, schema, name } = req.body;
   if (!connection || !schema || !name) {
@@ -93,4 +99,4 @@ async function runScript(req, res) {
   res.json(result);
 }
 
-module.exports = { testConnection, getObjects, getTableColumns, exportScripts, executeScripts, insertRows, runScript };
+module.exports = { testConnection, getObjects, getTableColumns, getSchemas, exportScripts, executeScripts, insertRows, runScript };

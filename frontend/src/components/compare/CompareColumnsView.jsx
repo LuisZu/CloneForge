@@ -9,6 +9,7 @@ import DiffStatusBadge from './DiffStatusBadge';
 import CompareColumnsToolbar from './CompareColumnsToolbar';
 import ColumnResultsModal from './ColumnResultsModal';
 import InsertPreviewModal from '../data/InsertPreviewModal';
+import ScriptExportModal from '../objects/ScriptExportModal';
 import { useCompareColumns } from '../../hooks/useCompareColumns';
 
 function DiffStatusCellRenderer({ value }) {
@@ -17,23 +18,24 @@ function DiffStatusCellRenderer({ value }) {
 
 export default function CompareColumnsView() {
   const gridRef = useRef();
-  const { sourceConnected, destConnected } = useAppStore();
+  const { sourceConnected, destConnected, showToast } = useAppStore();
 
   const {
     tables, selectedTable, setSelectedTable,
-    destSchema, setDestSchema,
+    destSchema, setDestSchema, destSchemas,
     compare, loading, error, compared, diffRows,
     selectedFields, setSelectedFields,
     openPreview, previewScript, previewOpen, closePreview,
     executeAdd, addLoading,
     addResults, showAddResults, setShowAddResults,
+    openExport, exportSql, closeExport,
   } = useCompareColumns();
 
   const effectiveDestSchema = destSchema || selectedTable?.schema || '';
 
   const columnDefs = useMemo(() => [
     {
-      checkboxSelection: (params) => params.data?.diffStatus === 'MISSING_IN_DEST',
+      checkboxSelection: true,
       headerCheckboxSelection: false,
       width: 48,
       minWidth: 48,
@@ -41,6 +43,8 @@ export default function CompareColumnsView() {
       resizable: false,
       sortable: false,
       filter: false,
+      cellStyle: ({ data }) =>
+        data?.diffStatus !== 'MISSING_IN_DEST' ? { opacity: 0.25, pointerEvents: 'none' } : null,
     },
     { headerName: 'Campo', field: 'name', flex: 1, minWidth: 160, filter: true, sortable: true },
     {
@@ -70,8 +74,17 @@ export default function CompareColumnsView() {
   const defaultColDef = useMemo(() => ({ resizable: true }), []);
 
   function onSelectionChanged() {
-    const rows = gridRef.current?.api?.getSelectedRows() || [];
-    setSelectedFields(rows);
+    const api = gridRef.current?.api;
+    const rows = api?.getSelectedRows() || [];
+    const eligible = rows.filter((r) => r.diffStatus === 'MISSING_IN_DEST');
+    const ineligible = rows.filter((r) => r.diffStatus !== 'MISSING_IN_DEST');
+
+    if (ineligible.length > 0 && api) {
+      ineligible.forEach((row) => api.getRowNode(row.name.toLowerCase())?.setSelected(false, false));
+      showToast('Solo se pueden seleccionar campos que faltan en Destino', 'error');
+    }
+
+    setSelectedFields(eligible);
   }
 
   function handleAddFields() {
@@ -99,12 +112,14 @@ export default function CompareColumnsView() {
         onSelectTable={setSelectedTable}
         destSchema={destSchema}
         onDestSchema={setDestSchema}
+        destSchemas={destSchemas}
         onCompare={compare}
         compareLoading={loading}
         compared={compared}
         destConnected={destConnected}
         selectedCount={selectedFields.length}
         onAddFields={handleAddFields}
+        onExport={openExport}
       />
 
       <div className="flex-1 ag-theme-alpine" style={{ minHeight: 0 }}>
@@ -156,6 +171,12 @@ export default function CompareColumnsView() {
         open={showAddResults}
         results={addResults}
         onClose={() => setShowAddResults(false)}
+      />
+
+      <ScriptExportModal
+        open={exportSql !== null}
+        sql={exportSql}
+        onClose={closeExport}
       />
     </div>
   );

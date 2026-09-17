@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import useAppStore from '../store/appStore';
-import { fetchSourceColumns, fetchDestinationColumns, runScript } from '../api/cloneforge';
+import { fetchSourceColumns, fetchDestinationColumns, fetchDestinationSchemas, runScript } from '../api/cloneforge';
 import { generateAddColumnsScript } from '../utils/alterTableGenerator';
 
 export function useCompareColumns() {
@@ -10,6 +10,7 @@ export function useCompareColumns() {
 
   const [selectedTable, _setSelectedTable] = useState(null);
   const [destSchema, setDestSchema] = useState('');
+  const [destSchemas, setDestSchemas] = useState([]);
   const [sourceCols, setSourceCols] = useState([]);
   const [destCols, setDestCols] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -22,6 +23,16 @@ export function useCompareColumns() {
   const [addLoading, setAddLoading] = useState(false);
   const [addResults, setAddResults] = useState(null);
   const [showAddResults, setShowAddResults] = useState(false);
+  const [exportSql, setExportSql] = useState(null);
+
+  // Load the list of destination schemas whenever the destination connects,
+  // so the schema field can be a select instead of free text.
+  useEffect(() => {
+    if (!destConnected) { setDestSchemas([]); return; }
+    fetchDestinationSchemas(destConfig)
+      .then(setDestSchemas)
+      .catch(() => setDestSchemas([]));
+  }, [destConnected, destConfig]);
 
   const setSelectedTable = useCallback((table) => {
     _setSelectedTable(table);
@@ -78,6 +89,12 @@ export function useCompareColumns() {
     setPreviewOpen(true);
   }, [selectedTable, selectedFields, destSchema]);
 
+  const openExport = useCallback(() => {
+    if (!selectedTable || selectedFields.length === 0) return;
+    const script = generateAddColumnsScript(selectedTable, destSchema, selectedFields);
+    setExportSql(script);
+  }, [selectedTable, selectedFields, destSchema]);
+
   const executeAdd = useCallback(async (afterAdd) => {
     setAddLoading(true);
     try {
@@ -107,11 +124,12 @@ export function useCompareColumns() {
 
   return {
     tables, selectedTable, setSelectedTable,
-    destSchema, setDestSchema,
+    destSchema, setDestSchema, destSchemas,
     compare, loading, error, compared, diffRows,
     selectedFields, setSelectedFields,
     openPreview, previewScript, previewOpen, closePreview: () => setPreviewOpen(false),
     executeAdd, addLoading,
     addResults, showAddResults, setShowAddResults,
+    openExport, exportSql, closeExport: () => setExportSql(null),
   };
 }

@@ -40,6 +40,10 @@ export function fetchDestinationColumns(conn, schema, name) {
     .then((r) => r.data.columns);
 }
 
+export function fetchDestinationSchemas(conn) {
+  return api.post('/destination/schemas', conn).then((r) => r.data.schemas);
+}
+
 export function fetchTableRows(conn, schema, name, limit = 1000) {
   return api
     .post('/source/rows', { connection: conn, schema, name, limit })

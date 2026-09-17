@@ -8,6 +8,7 @@ import useAppStore from '../../store/appStore';
 import TypeBadge from '../objects/TypeBadge';
 import DiffStatusBadge from './DiffStatusBadge';
 import CompareObjectsToolbar from './CompareObjectsToolbar';
+import ScriptExportModal from '../objects/ScriptExportModal';
 import { useCompareObjects } from '../../hooks/useCompareObjects';
 import { useCloneOperation } from '../../hooks/useCloneOperation';
 
@@ -36,10 +37,12 @@ export default function CompareObjectsView() {
     overwriteExisting,
     setOverwriteExisting,
     setSelectedObjects,
+    showToast,
   } = useAppStore();
 
   const { compare, loading: compareLoading, error, compared, diffRows } = useCompareObjects();
-  const { clone } = useCloneOperation();
+  const { clone, exportScript, exportLoading } = useCloneOperation();
+  const [exportSql, setExportSql] = useState(null);
   const cloneLoading = useAppStore((s) => s.cloneLoading);
   const selectedCount = useAppStore((s) => s.selectedObjects.length);
 
@@ -59,7 +62,7 @@ export default function CompareObjectsView() {
 
   const columnDefs = useMemo(() => [
     {
-      checkboxSelection: (params) => params.data?.diffStatus === 'MISSING_IN_DEST',
+      checkboxSelection: true,
       headerCheckboxSelection: false,
       width: 48,
       minWidth: 48,
@@ -67,6 +70,8 @@ export default function CompareObjectsView() {
       resizable: false,
       sortable: false,
       filter: false,
+      cellStyle: ({ data }) =>
+        data?.diffStatus !== 'MISSING_IN_DEST' ? { opacity: 0.25, pointerEvents: 'none' } : null,
     },
     { field: 'schema', headerName: 'Esquema', width: 120, filter: true, sortable: true },
     { field: 'name', headerName: 'Nombre', flex: 1, filter: true, sortable: true, minWidth: 200 },
@@ -92,8 +97,17 @@ export default function CompareObjectsView() {
   );
 
   function onSelectionChanged() {
-    const rows = gridRef.current?.api?.getSelectedRows() || [];
-    setSelectedObjects(rows);
+    const api = gridRef.current?.api;
+    const rows = api?.getSelectedRows() || [];
+    const eligible = rows.filter((r) => r.diffStatus === 'MISSING_IN_DEST');
+    const ineligible = rows.filter((r) => r.diffStatus !== 'MISSING_IN_DEST');
+
+    if (ineligible.length > 0 && api) {
+      ineligible.forEach((row) => api.getRowNode(row.id)?.setSelected(false, false));
+      showToast('Solo se pueden seleccionar objetos que faltan en Destino', 'error');
+    }
+
+    setSelectedObjects(eligible);
   }
 
   function handleClone() {
@@ -135,6 +149,8 @@ export default function CompareObjectsView() {
         selectedCount={selectedCount}
         onClone={handleClone}
         cloneLoading={cloneLoading}
+        onExport={() => exportScript((sql) => setExportSql(sql))}
+        exportLoading={exportLoading}
         destConnected={destConnected}
         onCompare={compare}
         compareLoading={compareLoading}
@@ -174,6 +190,12 @@ export default function CompareObjectsView() {
           />
         )}
       </div>
+
+      <ScriptExportModal
+        open={exportSql !== null}
+        sql={exportSql}
+        onClose={() => setExportSql(null)}
+      />
     </div>
   );
 }

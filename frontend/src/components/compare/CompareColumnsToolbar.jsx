@@ -1,6 +1,8 @@
 import clsx from 'clsx';
-import { RefreshCw, PlusCircle } from 'lucide-react';
+import { RefreshCw, PlusCircle, Download } from 'lucide-react';
 import SingleSelectDropdown from '../ui/SingleSelectDropdown';
+
+const SAME_AS_SOURCE = '__same_as_source__';
 
 export default function CompareColumnsToolbar({
   tables,
@@ -8,12 +10,14 @@ export default function CompareColumnsToolbar({
   onSelectTable,
   destSchema,
   onDestSchema,
+  destSchemas,
   onCompare,
   compareLoading,
   compared,
   destConnected,
   selectedCount,
   onAddFields,
+  onExport,
 }) {
   const tableOptions = tables.map((t) => ({
     value: `${t.schema}.${t.name}`,
@@ -29,6 +33,18 @@ export default function CompareColumnsToolbar({
     onSelectTable(found ?? null);
   }
 
+  const schemaOptions = [
+    {
+      value: SAME_AS_SOURCE,
+      label: `Mismo que el origen${selectedTable ? ` (${selectedTable.schema})` : ''}`,
+    },
+    ...destSchemas.map((s) => ({ value: s, label: s })),
+  ];
+
+  function handleSchemaChange(value) {
+    onDestSchema(!value || value === SAME_AS_SOURCE ? '' : value);
+  }
+
   const canCompare = !!selectedTable && destConnected && !compareLoading;
 
   return (
@@ -41,16 +57,13 @@ export default function CompareColumnsToolbar({
         placeholder="Seleccionar tabla..."
       />
 
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-slate-400 font-medium shrink-0">Esquema destino:</span>
-        <input
-          type="text"
-          value={destSchema}
-          onChange={(e) => onDestSchema(e.target.value)}
-          placeholder="ej: dbo"
-          className="w-36 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
+      <SingleSelectDropdown
+        label="Esquema destino"
+        options={schemaOptions}
+        selected={destSchema || SAME_AS_SOURCE}
+        onChange={handleSchemaChange}
+        placeholder="Seleccionar esquema..."
+      />
 
       <button
         onClick={onCompare}
@@ -74,6 +87,20 @@ export default function CompareColumnsToolbar({
           <strong className="text-slate-700">{selectedCount}</strong> campo{selectedCount !== 1 ? 's' : ''} seleccionado{selectedCount !== 1 ? 's' : ''}
         </span>
       )}
+      <button
+        onClick={onExport}
+        disabled={selectedCount === 0}
+        title={selectedCount === 0 ? 'Selecciona al menos un campo faltante' : 'Genera el script SQL sin ejecutarlo'}
+        className={clsx(
+          'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
+          selectedCount > 0
+            ? 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600'
+            : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+        )}
+      >
+        <Download size={14} />
+        Exportar Script
+      </button>
       <button
         onClick={onAddFields}
         disabled={selectedCount === 0 || !destConnected}
