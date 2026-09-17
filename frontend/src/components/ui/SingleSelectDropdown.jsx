@@ -1,9 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Search, X } from 'lucide-react';
 import clsx from 'clsx';
 
+// Fixed row height (px) used to virtualize the options list — only the rows
+// actually visible in the scroll viewport are mounted, so the dropdown stays
+// fast even with tens of thousands of options (e.g. many schemas x tables).
+const ITEM_HEIGHT = 36;
+const LIST_MAX_HEIGHT = 224; // matches the previous `max-h-56`
+const OVERSCAN = 6;
+
 /**
  * Dropdown single-select with live search. Same visual design as MultiSelectDropdown.
+ * The options list is virtualized so large option sets (thousands of tables
+ * across many schemas) don't degrade render performance.
  *
  * Props:
  *  - label       string              — label shown before the trigger button
@@ -15,8 +24,10 @@ import clsx from 'clsx';
 export default function SingleSelectDropdown({ label, options, selected, onChange, placeholder = 'Seleccionar...' }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [scrollTop, setScrollTop] = useState(0);
   const containerRef = useRef(null);
   const searchRef = useRef(null);
+  const listRef = useRef(null);
 
   useEffect(() => {
     function onMouseDown(e) {
@@ -36,11 +47,27 @@ export default function SingleSelectDropdown({ label, options, selected, onChang
     }
   }, [open]);
 
-  const filtered = options.filter((o) =>
-    o.label.toLowerCase().includes(search.toLowerCase())
+  const filtered = useMemo(
+    () => options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase())),
+    [options, search]
   );
 
-  const selectedOption = options.find((o) => o.value === selected) ?? null;
+  // Scroll position resets whenever the filtered set changes, otherwise the
+  // virtualized window could point past the end of a newly-narrowed list.
+  useEffect(() => {
+    setScrollTop(0);
+    if (listRef.current) listRef.current.scrollTop = 0;
+  }, [search, open]);
+
+  const selectedOption = useMemo(
+    () => options.find((o) => o.value === selected) ?? null,
+    [options, selected]
+  );
+
+  const visibleCount = Math.ceil(LIST_MAX_HEIGHT / ITEM_HEIGHT) + OVERSCAN * 2;
+  const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN);
+  const endIndex = Math.min(filtered.length, startIndex + visibleCount);
+  const visibleItems = filtered.slice(startIndex, endIndex);
 
   function pick(opt) {
     onChange(opt.value);
@@ -99,41 +126,57 @@ export default function SingleSelectDropdown({ label, options, selected, onChang
               placeholder="Buscar tabla..."
               className="flex-1 text-sm outline-none placeholder:text-slate-400"
             />
+            {options.length > 200 && (
+              <span className="text-[10px] text-slate-400 shrink-0">
+                {filtered.length.toLocaleString()} / {options.length.toLocaleString()}
+              </span>
+            )}
           </div>
 
-          {/* Options list */}
-          <div className="overflow-y-auto max-h-56">
+          {/* Options list (virtualized) */}
+          <div
+            ref={listRef}
+            className="overflow-y-auto"
+            style={{ maxHeight: LIST_MAX_HEIGHT }}
+            onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+          >
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-xs text-slate-400 text-center">Sin resultados</p>
             ) : (
-              filtered.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => pick(opt)}
-                  className={clsx(
-                    'w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50 transition-colors',
-                    opt.value === selected && 'bg-blue-50',
-                  )}
-                >
-                  <span
-                    className={clsx(
-                      'w-3 h-3 rounded-full border-2 shrink-0',
-                      opt.value === selected
-                        ? 'border-blue-600 bg-blue-600'
-                        : 'border-slate-300 bg-white',
-                    )}
-                  />
-                  <span
-                    className={clsx(
-                      'text-sm truncate font-mono',
-                      opt.value === selected ? 'text-blue-700 font-semibold' : 'text-slate-700',
-                    )}
-                  >
-                    {opt.label}
-                  </span>
-                </button>
-              ))
+              <div style={{ height: filtered.length * ITEM_HEIGHT, position: 'relative' }}>
+                {visibleItems.map((opt, i) => {
+                  const index = startIndex + i;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => pick(opt)}
+                      style={{ position: 'absolute', top: index * ITEM_HEIGHT, left: 0, right: 0, height: ITEM_HEIGHT }}
+                      className={clsx(
+                        'w-full flex items-center gap-2.5 px-3 text-left hover:bg-slate-50 transition-colors',
+                        opt.value === selected && 'bg-blue-50',
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          'w-3 h-3 rounded-full border-2 shrink-0',
+                          opt.value === selected
+                            ? 'border-blue-600 bg-blue-600'
+                            : 'border-slate-300 bg-white',
+                        )}
+                      />
+                      <span
+                        className={clsx(
+                          'text-sm truncate font-mono',
+                          opt.value === selected ? 'text-blue-700 font-semibold' : 'text-slate-700',
+                        )}
+                      >
+                        {opt.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>

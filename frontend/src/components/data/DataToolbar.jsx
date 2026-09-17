@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import clsx from 'clsx';
 import { Download, FileDown, RefreshCw } from 'lucide-react';
 import SingleSelectDropdown from '../ui/SingleSelectDropdown';
@@ -17,11 +18,19 @@ export default function DataToolbar({
   onRefresh,
   refreshLoading,
 }) {
-  const tableOptions = tables.map((t) => ({
-    value: `${t.schema}.${t.name}`,
-    label: `[${t.schema}].[${t.name}]`,
-    data: t,
-  }));
+  // Memoized so a stable reference reaches SingleSelectDropdown — with many
+  // schemas/tables this list can be large, and rebuilding it on every
+  // keystroke elsewhere in the toolbar (e.g. typing in "Esquema destino")
+  // would otherwise force it to re-filter and re-render from scratch.
+  const tableMap = useMemo(() => new Map(tables.map((t) => [`${t.schema}.${t.name}`, t])), [tables]);
+  const tableOptions = useMemo(
+    () => tables.map((t) => ({
+      value: `${t.schema}.${t.name}`,
+      label: `[${t.schema}].[${t.name}]`,
+      data: t,
+    })),
+    [tables]
+  );
 
   const selectedValue = selectedTable
     ? `${selectedTable.schema}.${selectedTable.name}`
@@ -29,8 +38,7 @@ export default function DataToolbar({
 
   function handleTableChange(value) {
     if (!value) { onSelectTable(null); return; }
-    const found = tables.find((t) => `${t.schema}.${t.name}` === value);
-    onSelectTable(found ?? null);
+    onSelectTable(tableMap.get(value) ?? null);
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Database } from 'lucide-react';
 import useAppStore from '../../store/appStore';
 import { useDataTransfer } from '../../hooks/useDataTransfer';
@@ -12,7 +12,7 @@ import ScriptExportModal from '../objects/ScriptExportModal';
 export default function DataTransferView() {
   const rowGridRef = useRef();
   const { objects, sourceConnected, destConnected } = useAppStore();
-  const tables = objects.filter((o) => o.type === 'TABLA');
+  const tables = useMemo(() => objects.filter((o) => o.type === 'TABLA'), [objects]);
   const { refresh, loading: refreshLoading } = useSourceConnection();
 
   const {

@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Search, X } from 'lucide-react';
 import clsx from 'clsx';
 
+// Fixed row height (px) used to virtualize the options list — only the rows
+// actually visible in the scroll viewport are mounted, so the dropdown stays
+// fast even with a very large number of options (e.g. many schemas).
+const ITEM_HEIGHT = 36;
+const LIST_MAX_HEIGHT = 192; // matches the previous `max-h-48`
+const OVERSCAN = 6;
+
 /**
- * Dropdown multi-select with live search.
+ * Dropdown multi-select with live search. The options list is virtualized
+ * so large option sets don't degrade render performance.
  *
  * Props:
  *  - label       string   — label shown before the trigger button
@@ -15,8 +23,10 @@ import clsx from 'clsx';
 export default function MultiSelectDropdown({ label, options, selected, onChange, placeholder = 'Seleccionar...' }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [scrollTop, setScrollTop] = useState(0);
   const containerRef = useRef(null);
   const searchRef = useRef(null);
+  const listRef = useRef(null);
 
   // Close when clicking outside
   useEffect(() => {
@@ -38,12 +48,25 @@ export default function MultiSelectDropdown({ label, options, selected, onChange
     }
   }, [open]);
 
-  const filtered = options.filter((o) =>
-    o.toLowerCase().includes(search.toLowerCase())
+  const filtered = useMemo(
+    () => options.filter((o) => o.toLowerCase().includes(search.toLowerCase())),
+    [options, search]
   );
+
+  // Scroll position resets whenever the filtered set changes, otherwise the
+  // virtualized window could point past the end of a newly-narrowed list.
+  useEffect(() => {
+    setScrollTop(0);
+    if (listRef.current) listRef.current.scrollTop = 0;
+  }, [search, open]);
 
   const allSelected = options.length > 0 && selected.length === options.length;
   const noneSelected = selected.length === 0;
+
+  const visibleCount = Math.ceil(LIST_MAX_HEIGHT / ITEM_HEIGHT) + OVERSCAN * 2;
+  const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN);
+  const endIndex = Math.min(filtered.length, startIndex + visibleCount);
+  const visibleItems = filtered.slice(startIndex, endIndex);
 
   function toggleAll() {
     onChange(allSelected ? [] : [...options]);
@@ -125,25 +148,36 @@ export default function MultiSelectDropdown({ label, options, selected, onChange
             </label>
           )}
 
-          {/* Options list */}
-          <div className="overflow-y-auto max-h-48">
+          {/* Options list (virtualized) */}
+          <div
+            ref={listRef}
+            className="overflow-y-auto"
+            style={{ maxHeight: LIST_MAX_HEIGHT }}
+            onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+          >
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-xs text-slate-400 text-center">Sin resultados</p>
             ) : (
-              filtered.map((opt) => (
-                <label
-                  key={opt}
-                  className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(opt)}
-                    onChange={() => toggle(opt)}
-                    className="rounded accent-blue-600"
-                  />
-                  <span className="text-sm text-slate-700">{opt}</span>
-                </label>
-              ))
+              <div style={{ height: filtered.length * ITEM_HEIGHT, position: 'relative' }}>
+                {visibleItems.map((opt, i) => {
+                  const index = startIndex + i;
+                  return (
+                    <label
+                      key={opt}
+                      style={{ position: 'absolute', top: index * ITEM_HEIGHT, left: 0, right: 0, height: ITEM_HEIGHT }}
+                      className="flex items-center gap-2.5 px-3 hover:bg-slate-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(opt)}
+                        onChange={() => toggle(opt)}
+                        className="rounded accent-blue-600"
+                      />
+                      <span className="text-sm text-slate-700 truncate">{opt}</span>
+                    </label>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
