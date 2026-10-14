@@ -12,9 +12,9 @@ export function fetchObjects(conn) {
   return api.post('/source/objects', conn).then((r) => r.data.objects);
 }
 
-export function fetchDDL(conn, { schema, name, type, table, indexName }, includeData = false) {
+export function fetchDDL(conn, { schema, name, type, table, indexName }, includeData = false, truncateBeforeData = false) {
   return api
-    .post('/source/ddl', { connection: conn, schema, name, type, includeData, table, indexName })
+    .post('/source/ddl', { connection: conn, schema, name, type, includeData, table, indexName, truncateBeforeData })
     .then((r) => r.data.ddl);
 }
 
@@ -81,6 +81,21 @@ export function executeScripts(conn, scripts, destSchema, replacements = [], ove
       destSchema: destSchema || null,
       replacements,
       overwrite,
+    })
+    .then((r) => r.data);
+}
+
+// Copies a table's rows directly source DB -> destination DB on the backend
+// (paginated, memory-bounded) — row data never travels through the browser.
+export function copyTableData(sourceConn, destConn, schema, name, destSchema, truncateFirst = false) {
+  return api
+    .post('/destination/copy-table-data', {
+      sourceConnection: sourceConn,
+      destConnection: destConn,
+      schema,
+      name,
+      destSchema: destSchema || null,
+      truncateFirst,
     })
     .then((r) => r.data);
 }

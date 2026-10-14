@@ -17,7 +17,10 @@ async function withPool(connConfig, callback) {
       encrypt: connConfig.encrypt || false,
     },
     connectionTimeout: 15000,
-    requestTimeout: 60000,
+    // Per-statement timeout. Bumped from the previous 60s: with "incluir
+    // datos" a single table's INSERT block can take a while on large tables,
+    // and this fires per statement/batch, not for the whole clone operation.
+    requestTimeout: 120000,
   };
 
   const pool = new sql.ConnectionPool(config);

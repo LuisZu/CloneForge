@@ -1,4 +1,4 @@
-import { Search, Copy, Download, Loader2, RefreshCw } from 'lucide-react';
+import { Search, Copy, Download, Loader2, RefreshCw, DatabaseZap } from 'lucide-react';
 import clsx from 'clsx';
 import MultiSelectDropdown from '../ui/MultiSelectDropdown';
 
@@ -16,11 +16,14 @@ export default function GridToolbar({
   onDestSchema,
   includeData,
   onIncludeData,
+  truncateBeforeData,
+  onTruncateBeforeData,
   overwriteExisting,
   onOverwriteExisting,
   selectedCount,
   onClone,
   cloneLoading,
+  onCloneDataOnly,
   onExport,
   exportLoading,
   destConnected,
@@ -126,6 +129,33 @@ export default function GridToolbar({
           </button>
         </div>
 
+        {/* Truncate destination table before inserting data — applies both to
+            "Incluir datos" (full clone) and "Cargar solo datos" below */}
+        <div className="flex flex-col">
+          <span className="text-xs text-slate-400 mb-1">Vaciar tabla destino</span>
+          <button
+            onClick={() => onTruncateBeforeData(!truncateBeforeData)}
+            title="Si la tabla destino ya tiene datos, los elimina antes de insertar los del origen"
+            className={clsx(
+              'flex items-center gap-2 h-[34px] px-3 rounded-lg text-xs font-medium border transition-colors',
+              truncateBeforeData
+                ? 'bg-red-600 text-white border-red-600'
+                : 'bg-white text-slate-500 border-slate-300 hover:border-slate-400'
+            )}
+          >
+            <span className={clsx(
+              'w-7 h-4 rounded-full transition-colors flex items-center px-0.5',
+              truncateBeforeData ? 'bg-red-400' : 'bg-slate-300'
+            )}>
+              <span className={clsx(
+                'w-3 h-3 rounded-full bg-white shadow transition-transform',
+                truncateBeforeData ? 'translate-x-3' : 'translate-x-0'
+              )} />
+            </span>
+            {truncateBeforeData ? 'Sí' : 'No'}
+          </button>
+        </div>
+
         {/* Overwrite toggle */}
         <div className="flex flex-col">
           <span className="text-xs text-slate-400 mb-1">Reemplazar si existe</span>
@@ -173,6 +203,20 @@ export default function GridToolbar({
             >
               {exportLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
               {exportLoading ? 'Generando...' : 'Exportar Script'}
+            </button>
+            <button
+              onClick={onCloneDataOnly}
+              disabled={!canClone}
+              title="Copia solo los registros de las tablas seleccionadas — no crea ni modifica tablas, índices o llaves foráneas"
+              className={clsx(
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
+                canClone
+                  ? 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                  : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+              )}
+            >
+              {cloneLoading ? <Loader2 size={14} className="animate-spin" /> : <DatabaseZap size={14} />}
+              {cloneLoading ? 'Cargando...' : 'Cargar Solo Datos'}
             </button>
             <button
               onClick={onClone}

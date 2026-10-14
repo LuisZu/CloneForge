@@ -11,5 +11,6 @@ router.post('/export-scripts', ctrl.exportScripts);
 router.post('/execute', ctrl.executeScripts);
 router.post('/insert-rows', ctrl.insertRows);
 router.post('/run-script', ctrl.runScript);
+router.post('/copy-table-data', ctrl.copyTableData);
 
 module.exports = router;

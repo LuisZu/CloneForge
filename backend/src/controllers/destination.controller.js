@@ -99,4 +99,20 @@ async function runScript(req, res) {
   res.json(result);
 }
 
-module.exports = { testConnection, getObjects, getTableColumns, getSchemas, exportScripts, executeScripts, insertRows, runScript };
+async function copyTableData(req, res) {
+  const { sourceConnection, destConnection, schema, name, destSchema, truncateFirst } = req.body;
+  if (!sourceConnection || !destConnection || !schema || !name) {
+    return res.status(400).json({ error: 'Faltan campos: sourceConnection, destConnection, schema, name' });
+  }
+  const sourceConn = validateConn(sourceConnection);
+  const destConn = validateConn(destConnection);
+  const result = await destinationService.copyTableData(
+    sourceConn, destConn, schema, name, destSchema || null, !!truncateFirst
+  );
+  res.json(result);
+}
+
+module.exports = {
+  testConnection, getObjects, getTableColumns, getSchemas,
+  exportScripts, executeScripts, insertRows, runScript, copyTableData,
+};

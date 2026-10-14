@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import clsx from 'clsx';
-import { Download, FileDown, RefreshCw } from 'lucide-react';
+import { Download, FileDown, RefreshCw, ShieldCheck } from 'lucide-react';
 import SingleSelectDropdown from '../ui/SingleSelectDropdown';
 
 export default function DataToolbar({
@@ -9,6 +9,8 @@ export default function DataToolbar({
   onSelectTable,
   destSchema,
   onDestSchema,
+  validateExists,
+  onValidateExists,
   selectedCount,
   onInsert,
   insertLoading,
@@ -80,6 +82,21 @@ export default function DataToolbar({
           className="w-36 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
+
+      {/* Skip rows that already exist in destination */}
+      <button
+        onClick={() => onValidateExists(!validateExists)}
+        title="Antes de insertar cada fila, verifica si ya existe en destino (por llave primaria, o por todos los campos si la tabla no tiene) y la omite en ese caso en lugar de intentar insertarla de nuevo"
+        className={clsx(
+          'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-colors shrink-0',
+          validateExists
+            ? 'bg-emerald-600 text-white border-emerald-600'
+            : 'bg-white text-slate-500 border-slate-300 hover:border-slate-400'
+        )}
+      >
+        <ShieldCheck size={14} />
+        Omitir si ya existe
+      </button>
 
       {/* Row count */}
       {rowCount > 0 && (

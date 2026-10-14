@@ -47,6 +47,8 @@ const useAppStore = create(
       // ── Clone options ─────────────────────────────────────────────────────────
       includeData: false,
       setIncludeData: (includeData) => set({ includeData }),
+      truncateBeforeData: false,
+      setTruncateBeforeData: (truncateBeforeData) => set({ truncateBeforeData }),
       overwriteExisting: false,
       setOverwriteExisting: (overwriteExisting) => set({ overwriteExisting }),
 
@@ -62,17 +64,34 @@ const useAppStore = create(
       cloneResults: null,
       cloneLoading: false,
       showResults: false,
+      // { done, total, batch, batchCount } while a chunked clone is running, else null
+      cloneProgress: null,
+      // Live, per-item log shown in CloningOverlay while a clone runs:
+      // [{ id, schema, name, type, status: 'pending'|'success'|'exists'|'error', note?, error? }]
+      cloneLiveLog: [],
       setCloneResults: (results) => set({ cloneResults: results }),
       setCloneLoading: (loading) => set({ cloneLoading: loading }),
       setShowResults: (show) => set({ showResults: show }),
+      setCloneProgress: (progress) => set({ cloneProgress: progress }),
+      setCloneLiveLog: (log) => set({ cloneLiveLog: log }),
+      appendCloneLiveLog: (entries) => set((state) => ({ cloneLiveLog: [...state.cloneLiveLog, ...entries] })),
+      patchCloneLiveLog: (updates) => set((state) => {
+        const byId = new Map(updates.map((u) => [u.id, u]));
+        return {
+          cloneLiveLog: state.cloneLiveLog.map((e) => (byId.has(e.id) ? { ...e, ...byId.get(e.id) } : e)),
+        };
+      }),
 
       // ── Data insert results ───────────────────────────────────────────────────
       dataInsertResults: null,
       dataInsertLoading: false,
       showDataResults: false,
+      // { done, total, batch, batchCount } while a chunked insert is running, else null
+      dataInsertProgress: null,
       setDataInsertResults: (dataInsertResults) => set({ dataInsertResults }),
       setDataInsertLoading: (dataInsertLoading) => set({ dataInsertLoading }),
       setShowDataResults: (showDataResults) => set({ showDataResults }),
+      setDataInsertProgress: (progress) => set({ dataInsertProgress: progress }),
 
       // ── Toast notifications ───────────────────────────────────────────────────
       toast: null,

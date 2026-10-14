@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Play, FileCode, AlertTriangle } from 'lucide-react';
 
-export default function InsertPreviewModal({ open, script, rowCount, onClose, onExecute, executing, itemLabel = 'fila' }) {
+export default function InsertPreviewModal({ open, script, rowCount, onClose, onExecute, executing, progress, itemLabel = 'fila' }) {
   return (
     <Dialog.Root open={open} onOpenChange={(v) => { if (!v && !executing) onClose(); }}>
       <Dialog.Portal>
@@ -47,6 +47,25 @@ export default function InsertPreviewModal({ open, script, rowCount, onClose, on
               {script}
             </pre>
           </div>
+
+          {/* Progress — shown while executing, so a slow run never looks frozen */}
+          {executing && progress?.total > 0 && (
+            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+                <span>
+                  Lote {progress.batch}/{progress.batchCount} &middot; {progress.done.toLocaleString()} de{' '}
+                  {progress.total.toLocaleString()} filas
+                </span>
+                <span>{Math.round((progress.done / progress.total) * 100)}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-blue-600 h-2 transition-all"
+                  style={{ width: `${(progress.done / progress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Footer */}
           <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">

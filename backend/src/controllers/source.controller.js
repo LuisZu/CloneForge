@@ -30,7 +30,7 @@ async function getObjects(req, res) {
 }
 
 async function getDDL(req, res) {
-  const { connection, schema, name, type, includeData, table, indexName } = req.body;
+  const { connection, schema, name, type, includeData, table, indexName, truncateBeforeData } = req.body;
   if (!connection || !schema || !name || !type) {
     return res.status(400).json({ error: 'Faltan campos: connection, schema, name, type' });
   }
@@ -38,7 +38,11 @@ async function getDDL(req, res) {
     return res.status(400).json({ error: 'Faltan campos: table, indexName para el tipo INDICE' });
   }
   const conn = validateConn(connection);
-  const ddl = await sourceService.getDDL(conn, schema, name, type, !!includeData, { table, indexName });
+  const ddl = await sourceService.getDDL(conn, schema, name, type, !!includeData, {
+    table,
+    indexName,
+    truncateBeforeData: !!truncateBeforeData,
+  });
   res.json({ ddl });
 }
 

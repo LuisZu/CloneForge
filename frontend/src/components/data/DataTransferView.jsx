@@ -20,12 +20,14 @@ export default function DataTransferView() {
     columns, rows, rowsLoading, rowsError,
     selectedRows, setSelectedRows,
     destSchema, setDestSchema,
+    validateExists, setValidateExists,
     openPreview,
     previewScript,
     previewOpen,
     closePreview,
     executeInsert,
     insertLoading,
+    insertProgress,
     openExport,
     exportSql,
     closeExport,
@@ -48,6 +50,8 @@ export default function DataTransferView() {
         onSelectTable={setSelectedTable}
         destSchema={destSchema}
         onDestSchema={setDestSchema}
+        validateExists={validateExists}
+        onValidateExists={setValidateExists}
         selectedCount={selectedRows.length}
         onInsert={openPreview}
         insertLoading={insertLoading}
@@ -97,6 +101,7 @@ export default function DataTransferView() {
         onClose={closePreview}
         onExecute={() => executeInsert(() => rowGridRef.current?.deselectAll())}
         executing={insertLoading}
+        progress={insertProgress}
       />
 
       <ScriptExportModal

@@ -40,6 +40,48 @@ function buildInsert(schema, tableName, columns, row) {
   return `INSERT INTO [${schema}].[${tableName}] (${colList}) VALUES (${values})`;
 }
 
+/**
+ * Columns used to decide whether a row "already exists" in the destination.
+ * Prefers the table's primary key (fast, correct — matches the same record
+ * SQL Server itself would reject as a duplicate); falls back to every
+ * non-computed column (full-row match) when the table has no primary key.
+ */
+function getExistenceKeyColumns(columns) {
+  const pkCols = columns.filter((c) => c.isPrimaryKey);
+  return pkCols.length > 0 ? pkCols : columns.filter((c) => !c.isComputed);
+}
+
+/** WHERE clause that matches a specific row by its key columns' values. */
+function buildKeyWhereClause(keyColumns, row) {
+  return keyColumns
+    .map((c) => {
+      const val = row[c.name];
+      return val === null || val === undefined
+        ? `[${c.name}] IS NULL`
+        : `[${c.name}] = ${formatSqlValue(val)}`;
+    })
+    .join(' AND ');
+}
+
+/**
+ * Wraps an INSERT so it only runs when no row matching the key columns
+ * already exists, and reports the outcome via a trailing SELECT so the
+ * caller (runScript) can tell "inserted" apart from "already existed"
+ * without a separate round trip.
+ */
+function buildGuardedInsert(schema, tableName, insertLines, keyColumns, row) {
+  const where = buildKeyWhereClause(keyColumns, row);
+  return [
+    'DECLARE @__inserted INT = 0',
+    `IF NOT EXISTS (SELECT 1 FROM [${schema}].[${tableName}] WHERE ${where})`,
+    'BEGIN',
+    ...insertLines.map((l) => `    ${l}`),
+    '    SET @__inserted = 1',
+    'END',
+    'SELECT @__inserted AS outcome',
+  ].join('\n');
+}
+
 function buildEncTablaUdf(schema, tablaValue) {
   const escaped = String(tablaValue).replace(/'/g, "''");
   return (
@@ -94,11 +136,16 @@ function buildAlterTable(schema, row) {
  * - If the table matches the UDF pattern, also generates ALTER TABLE per row.
  * - Wraps identity inserts with SET IDENTITY_INSERT ON/OFF in the same batch.
  * - Batches are separated by GO.
+ * - When `validateExists` is true, each INSERT is guarded by an
+ *   `IF NOT EXISTS` check against the table's primary key (or every column
+ *   when there is no primary key), so rows that already exist in the
+ *   destination are skipped instead of erroring out on a duplicate key.
  */
-export function generateInsertScript(table, columns, rows, destSchema) {
+export function generateInsertScript(table, columns, rows, destSchema, validateExists = false) {
   const targetSchema = destSchema || table.schema;
   const udfMode      = isUdfTable(columns);
   const hasIdentity  = columns.some((c) => c.isIdentity);
+  const keyColumns   = validateExists ? getExistenceKeyColumns(columns) : null;
 
   const batches = [];
   const encTablaEmitted = new Set();
@@ -114,16 +161,20 @@ export function generateInsertScript(table, columns, rows, destSchema) {
       }
     }
 
-    const lines = [];
+    const insertLines = [];
     if (hasIdentity) {
-      lines.push(`SET IDENTITY_INSERT [${targetSchema}].[${table.name}] ON`);
+      insertLines.push(`SET IDENTITY_INSERT [${targetSchema}].[${table.name}] ON`);
     }
-    lines.push(buildInsert(targetSchema, table.name, columns, row));
+    insertLines.push(buildInsert(targetSchema, table.name, columns, row));
     if (hasIdentity) {
-      lines.push(`SET IDENTITY_INSERT [${targetSchema}].[${table.name}] OFF`);
+      insertLines.push(`SET IDENTITY_INSERT [${targetSchema}].[${table.name}] OFF`);
     }
 
-    batches.push(`-- Fila ${i + 1}\n${lines.join('\n')}`);
+    const stmt = keyColumns
+      ? buildGuardedInsert(targetSchema, table.name, insertLines, keyColumns, row)
+      : insertLines.join('\n');
+
+    batches.push(`-- Fila ${i + 1}\n${stmt}`);
 
     if (udfMode) {
       const alter = buildAlterTable(targetSchema, row);

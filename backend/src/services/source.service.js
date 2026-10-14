@@ -104,7 +104,7 @@ async function getObjects(connConfig) {
 async function getDDL(connConfig, schema, name, type, includeData = false, extra = {}) {
   return withPool(connConfig, async (pool) => {
     if (type === 'TABLA') {
-      return buildTableDDL(pool, schema, name, includeData);
+      return buildTableDDL(pool, schema, name, includeData, !!extra.truncateBeforeData);
     }
 
     if (type === 'INDICE') {
@@ -190,7 +190,7 @@ async function getTableColumns(connConfig, schema, name) {
   });
 }
 
-async function buildTableDDL(pool, schema, name, includeData) {
+async function buildTableDDL(pool, schema, name, includeData, truncateBeforeData = false) {
   // ── 1. Columns ──────────────────────────────────────────────────────────────
   const cols = await queryColumns(pool, schema, name);
 
@@ -200,12 +200,14 @@ async function buildTableDDL(pool, schema, name, includeData) {
     .input('name',   sql.NVarChar, name)
     .query(`
       SELECT kc.name AS constraint_name, c.name AS column_name,
-             ic.key_ordinal, ic.is_descending_key
+             ic.key_ordinal, ic.is_descending_key, i.type_desc
       FROM sys.key_constraints kc
       INNER JOIN sys.index_columns ic
              ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
       INNER JOIN sys.columns c
              ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+      INNER JOIN sys.indexes i
+             ON i.object_id = kc.parent_object_id AND i.index_id = kc.unique_index_id
       WHERE kc.type = 'PK'
         AND kc.parent_object_id = OBJECT_ID(@schema + '.' + @name)
       ORDER BY ic.key_ordinal
@@ -285,7 +287,13 @@ async function buildTableDDL(pool, schema, name, includeData) {
     const pkCols = pkRows
       .map((r) => `[${r.column_name}]${r.is_descending_key ? ' DESC' : ''}`)
       .join(', ');
-    colDefs.push(`    CONSTRAINT [${pkRows[0].constraint_name}] PRIMARY KEY (${pkCols})`);
+    // Must match the source's actual clustering — if the PK is NONCLUSTERED
+    // there and a separate index is the table's real CLUSTERED index,
+    // leaving this unqualified lets SQL Server default the PK to CLUSTERED
+    // and that later index creation fails with "cannot create more than
+    // one clustered index on table".
+    const pkClustering = pkRows[0].type_desc === 'CLUSTERED' ? 'CLUSTERED' : 'NONCLUSTERED';
+    colDefs.push(`    CONSTRAINT [${pkRows[0].constraint_name}] PRIMARY KEY ${pkClustering} (${pkCols})`);
   }
 
   const parts = [];
@@ -372,7 +380,7 @@ async function buildTableDDL(pool, schema, name, includeData) {
 
   // ── Data (optional) ─────────────────────────────────────────────────────────
   if (includeData) {
-    const dataStmts = await buildDataInserts(pool, schema, name, cols, hasIdentity);
+    const dataStmts = await buildDataInserts(pool, schema, name, cols, hasIdentity, truncateBeforeData);
     if (dataStmts) parts.push(dataStmts);
   }
 
@@ -457,18 +465,30 @@ function formatRefAction(desc) {
   return desc.replace(/_/g, ' ');
 }
 
-async function buildDataInserts(pool, schema, name, colMeta, hasIdentity) {
+async function buildDataInserts(pool, schema, name, colMeta, hasIdentity, truncateBeforeData = false) {
   const dataResult = await pool.request()
     .query(`SELECT * FROM [${schema}].[${name}] WITH (NOLOCK)`);
 
-  if (dataResult.recordset.length === 0) return '';
+  const lines = [];
+
+  // Empties whatever is already in the destination table before inserting,
+  // so the clone ends up matching the source exactly. Plain DELETE (not
+  // TRUNCATE) so it still works when other tables have foreign keys
+  // pointing at this one.
+  if (truncateBeforeData) {
+    lines.push(`-- Vaciar tabla destino antes de insertar los datos`);
+    lines.push(`DELETE FROM [${schema}].[${name}]`);
+  }
+
+  if (dataResult.recordset.length === 0) {
+    return lines.join('\n');
+  }
 
   const colNames = colMeta
     .filter((c) => !c.computed_definition)
     .map((c) => c.column_name);
   const colList = colNames.map((c) => `[${c}]`).join(', ');
 
-  const lines = [];
   lines.push(`-- DATA: ${dataResult.recordset.length} filas`);
   if (hasIdentity) {
     lines.push(`SET IDENTITY_INSERT [${schema}].[${name}] ON`);
@@ -510,6 +530,25 @@ function formatType(col) {
   return `[${col.data_type}]`;
 }
 
+/** Names of the columns that make up the table's PRIMARY KEY, if any, in key order. */
+async function queryPrimaryKeyColumnNames(pool, schema, name) {
+  const result = await pool.request()
+    .input('schema', sql.NVarChar, schema)
+    .input('name',   sql.NVarChar, name)
+    .query(`
+      SELECT c.name AS column_name
+      FROM sys.key_constraints kc
+      INNER JOIN sys.index_columns ic
+             ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+      INNER JOIN sys.columns c
+             ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+      WHERE kc.type = 'PK'
+        AND kc.parent_object_id = OBJECT_ID(@schema + '.' + @name)
+      ORDER BY ic.key_ordinal
+    `);
+  return result.recordset.map((r) => r.column_name);
+}
+
 async function getTableRows(connConfig, schema, name, limit = 1000) {
   return withPool(connConfig, async (pool) => {
     const metaResult = await pool.request()
@@ -530,12 +569,15 @@ async function getTableRows(connConfig, schema, name, limit = 1000) {
         ORDER BY c.column_id
       `);
 
+    const pkColumnNameSet = new Set(await queryPrimaryKeyColumnNames(pool, schema, name));
+
     const columns = metaResult.recordset.map((c) => ({
-      name:       c.column_name,
-      dataType:   c.data_type,
-      isNullable: !!c.is_nullable,
-      isIdentity: !!c.is_identity,
-      isComputed: !!c.computed_definition,
+      name:         c.column_name,
+      dataType:     c.data_type,
+      isNullable:   !!c.is_nullable,
+      isIdentity:   !!c.is_identity,
+      isComputed:   !!c.computed_definition,
+      isPrimaryKey: pkColumnNameSet.has(c.column_name),
     }));
 
     const s = schema.replace(/]/g, ']]');
@@ -549,4 +591,9 @@ async function getTableRows(connConfig, schema, name, limit = 1000) {
   });
 }
 
-module.exports = { testConnection, getObjects, getDDL, getTableColumns, getTableRows, getSchemas };
+module.exports = {
+  testConnection, getObjects, getDDL, getTableColumns, getTableRows, getSchemas,
+  // Exposed for destination.service.js's server-to-server table data copy —
+  // same column/PK metadata and literal-formatting logic used everywhere else.
+  queryColumns, queryPrimaryKeyColumnNames, formatSqlValue,
+};

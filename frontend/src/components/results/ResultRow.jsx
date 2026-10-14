@@ -45,6 +45,9 @@ export default function ResultRow({ result }) {
               : result.error}
           </p>
         )}
+        {result.note && result.status === 'success' && (
+          <p className="text-xs mt-1 text-slate-500">{result.note}</p>
+        )}
       </div>
       <span className={`text-xs font-semibold shrink-0 ${s.labelClass}`}>
         {s.label}

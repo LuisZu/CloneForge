@@ -47,6 +47,8 @@ export default function ObjectGrid() {
     setDestSchema,
     includeData,
     setIncludeData,
+    truncateBeforeData,
+    setTruncateBeforeData,
     overwriteExisting,
     setOverwriteExisting,
     setSelectedObjects,
@@ -54,7 +56,7 @@ export default function ObjectGrid() {
   } = useAppStore();
 
   const [exportSql, setExportSql] = useState(null);
-  const { clone, exportScript, exportLoading } = useCloneOperation();
+  const { clone, cloneDataOnly, exportScript, exportLoading } = useCloneOperation();
   const { refresh, loading: refreshLoading } = useSourceConnection();
   const selectedCount = useAppStore((s) => s.selectedObjects.length);
 
@@ -226,11 +228,14 @@ export default function ObjectGrid() {
         onDestSchema={setDestSchema}
         includeData={includeData}
         onIncludeData={setIncludeData}
+        truncateBeforeData={truncateBeforeData}
+        onTruncateBeforeData={setTruncateBeforeData}
         overwriteExisting={overwriteExisting}
         onOverwriteExisting={setOverwriteExisting}
         selectedCount={selectedCount}
         onClone={() => clone(() => gridRef.current?.api?.deselectAll())}
         cloneLoading={cloneLoading}
+        onCloneDataOnly={() => cloneDataOnly(() => gridRef.current?.api?.deselectAll())}
         onExport={() => exportScript((sql) => setExportSql(sql))}
         exportLoading={exportLoading}
         destConnected={destConnected}

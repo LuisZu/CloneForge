@@ -13,7 +13,7 @@ IF NOT EXIST ".env" (
     exit /b 1
 )
 
-echo [>] Iniciando CloneForge Backend en http://localhost:3001
+echo [^>] Iniciando CloneForge Backend en http://localhost:3001
 echo     Presiona Ctrl+C para detenerlo.
 echo.
 node src/index.js
