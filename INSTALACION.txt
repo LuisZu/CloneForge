@@ -3,7 +3,7 @@
 ║                    Despliegue en IIS (Windows)                               ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-Última actualización: 2026-04-28
+Última actualización: 2026-10-15
 Autor del documento : CloneForge Dev Team
 
 
@@ -23,6 +23,15 @@ Arquitectura:
 El frontend se comunica con el backend usando rutas relativas /api/*. En
 producción (IIS), el módulo ARR de IIS actúa como proxy inverso redirigiendo
 esas peticiones al proceso Node.js.
+
+El sitio IIS se publica con un Host Header dedicado (por defecto
+"cloneforge.local", agregado automáticamente al archivo hosts) y sirve los
+archivos desde una carpeta copiada a C:\inetpub\CloneForge — NO directo
+desde la carpeta del proyecto. Esto es intencional: si el proyecto vive bajo
+el perfil de un usuario (p.ej. ...\Documents\...), esas carpetas excluyen por
+diseño a las identidades de IIS en cada carpeta intermedia del camino, y dar
+permisos solo en frontend\dist\ no alcanza. C:\inetpub ya viene con permisos
+compatibles con IIS de fábrica.
 
 
 ════════════════════════════════════════════════════════════════════════════════
@@ -116,18 +125,21 @@ Una vez instalados todos los pre-requisitos, ejecuta el script de despliegue.
        .\deploy.ps1
 
   Parámetros opcionales:
-       .\deploy.ps1 -Port 80                           # Usar puerto 80 (estandar HTTP)
-       .\deploy.ps1 -SiteName "CloneForge-Test"        # Nombre del sitio IIS
+       .\deploy.ps1 -SiteHost "cloneforge-test.local"  # Host Header distinto
+       .\deploy.ps1 -SiteName "CloneForge-Test"        # Nombre del sitio/pool IIS
        .\deploy.ps1 -Port 9090 -BackendPort 3002       # Puertos personalizados
+       .\deploy.ps1 -DeployPath "D:\sitios\CloneForge" # Carpeta de despliegue distinta
 
 El script realiza automáticamente:
   ✔ Verifica Node.js, IIS, URL Rewrite y ARR
   ✔ Instala dependencias npm (backend y frontend)
   ✔ Compila el frontend (npm run build)
   ✔ Crea el archivo backend\.env si no existe
-  ✔ Crea el Application Pool "CloneForge" en IIS
-  ✔ Crea el sitio IIS apuntando a frontend\dist\
-  ✔ Asigna permisos de lectura al Application Pool sobre dist\
+  ✔ Copia frontend\dist\ a C:\inetpub\CloneForge (carpeta dedicada, no la del proyecto)
+  ✔ Crea el Application Pool y el sitio IIS (con Host Header) apuntando ahí
+  ✔ Asigna permisos de lectura a IIS_IUSRS e IIS AppPool sobre esa carpeta
+  ✔ Fuerza autenticación anónima habilitada en el sitio
+  ✔ Agrega el Host Header al archivo hosts (127.0.0.1)
   ✔ Instala PM2 y arranca el backend como proceso persistente
 
 ────────────────────────────────────────
@@ -137,12 +149,13 @@ El script realiza automáticamente:
 El script crea automáticamente el archivo backend\.env. Su contenido:
 
   PORT=3001
-  CORS_ORIGIN=http://localhost
+  CORS_ORIGIN=http://cloneforge.local
 
   - PORT        : Puerto donde Node.js escucha. Debe coincidir con el que
                   el proxy de IIS apunta (por defecto 3001).
-  - CORS_ORIGIN : URL de origen del frontend (donde IIS sirve la SPA).
-                  Si usaste un puerto distinto al 80, pon http://localhost:PUERTO.
+  - CORS_ORIGIN : URL de origen del frontend (donde IIS sirve la SPA),
+                  es decir http://<SiteHost> (o http://<SiteHost>:PUERTO si
+                  usaste un puerto distinto al 80).
 
   Si necesitas cambiarlo manualmente edita el archivo y reinicia el backend:
     pm2 restart cloneforge-backend
@@ -185,20 +198,39 @@ Si prefieres hacerlo sin el script, sigue estos pasos:
  3.4  Crear el sitio en IIS manualmente
 ────────────────────────────────────────
 
-  1. Abre IIS Manager.
-  2. Clic derecho en "Sitios" → "Agregar sitio web".
-  3. Nombre del sitio: CloneForge
-  4. Grupo de aplicaciones: crea uno nuevo o usa DefaultAppPool.
+  IMPORTANTE: copia los archivos compilados a una carpeta dedicada bajo
+  C:\inetpub\ — NO apuntes IIS directo a frontend\dist\ dentro de la carpeta
+  del proyecto. Si el proyecto vive bajo un perfil de usuario (p.ej.
+  ...\Documents\...), esas carpetas excluyen por diseño a las identidades de
+  IIS en cada carpeta intermedia del camino y terminarás con un error 401
+  sin importar qué permisos le des a dist\ (ver PARTE 5).
+
+  1. Copia el contenido de frontend\dist\ a C:\inetpub\CloneForge\
+       robocopy "C:\ruta\al\proyecto\CloneForge\frontend\dist" "C:\inetpub\CloneForge" /E
+
+  2. Agrega una entrada al archivo hosts (como administrador):
+       Notepad C:\Windows\System32\drivers\etc\hosts
+     Agrega al final:
+       127.0.0.1    cloneforge.local
+
+  3. Abre IIS Manager.
+  4. Clic derecho en "Sitios" → "Agregar sitio web".
+  5. Nombre del sitio: CloneForge
+  6. Grupo de aplicaciones: crea uno nuevo o usa DefaultAppPool.
      IMPORTANTE: en las opciones avanzadas del pool, en "Versión de .NET
      Framework" selecciona "Sin código administrado" (No Managed Code).
-  5. Ruta de acceso física: C:\ruta\al\proyecto\CloneForge\frontend\dist
-  6. Puerto: 80 (o el que elijas).
-  7. Haz clic en Aceptar.
+  7. Ruta de acceso física: C:\inetpub\CloneForge
+  8. Puerto: 80 (o el que elijas). Host name: cloneforge.local
+  9. Haz clic en Aceptar.
 
-  Después asigna permisos:
+  Después asigna permisos y autenticación:
   - Abre PowerShell como admin:
-      $distPath = "C:\ruta\al\proyecto\CloneForge\frontend\dist"
-      icacls $distPath /grant "IIS AppPool\CloneForge:(OI)(CI)RX" /T
+      $deployPath = "C:\inetpub\CloneForge"
+      icacls $deployPath /grant "IIS_IUSRS:(OI)(CI)RX" /T
+      icacls $deployPath /grant "IIS AppPool\CloneForge:(OI)(CI)RX" /T
+  - En IIS Manager, selecciona el sitio → doble clic en "Authentication" →
+    habilita "Anonymous Authentication" (y deshabilita "Windows
+    Authentication" si aparece habilitada).
 
 ────────────────────────────────────────
  3.5  Iniciar el backend
@@ -229,11 +261,11 @@ Si prefieres hacerlo sin el script, sigue estos pasos:
        Respuesta esperada: {"status":"ok"}
 
   2. Verifica el frontend vía IIS:
-       Abre en el navegador: http://localhost
+       Abre en el navegador: http://cloneforge.local
        Debe cargar la interfaz de CloneForge.
 
   3. Verifica el proxy /api:
-       Abre en el navegador: http://localhost/api/health
+       Abre en el navegador: http://cloneforge.local/api/health
        Respuesta esperada: {"status":"ok"}
        (Esta es la misma llamada pero pasando por el proxy de IIS/ARR)
 
@@ -253,32 +285,53 @@ PROBLEMA: Error 401 al abrir el sitio (pagina "no esta disponible")
   CAUSA   : La autenticacion anonima del sitio esta deshabilitada, o el
             servidor exige Windows Authentication (comun en servidores
             unidos a un dominio con politicas de seguridad corporativas).
+            Tambien puede pasar si el sitio quedo apuntando directo a una
+            carpeta bajo el perfil de un usuario (...\Documents\...) en vez
+            de a C:\inetpub\CloneForge -- esas carpetas excluyen por diseno
+            a las identidades de IIS en cada carpeta intermedia del camino,
+            y los permisos en dist\ solo no alcanzan.
             El error ocurre al cargar la pagina misma, antes de llegar al
             proxy /api, por lo que NO es un problema de ARR.
-  SOLUCION: Vuelve a correr deploy.ps1 (ya fuerza autenticacion anonima a
-            nivel del sitio en cada ejecucion). Si prefieres hacerlo a mano:
-              1. Abre IIS Manager -> selecciona el sitio CloneForge.
-              2. Doble clic en "Authentication".
-              3. "Anonymous Authentication" -> clic derecho -> Enable.
-              4. Si aparece "Windows Authentication" como Enabled, deshabilitala.
+  SOLUCION: Vuelve a correr deploy.ps1 (ya copia a C:\inetpub\CloneForge y
+            fuerza autenticacion anonima en cada ejecucion). Si prefieres
+            hacerlo a mano:
+              1. Verifica que la ruta fisica del sitio sea C:\inetpub\CloneForge
+                 (no una ruta bajo Documents\ o el perfil de un usuario).
+              2. Abre IIS Manager -> selecciona el sitio CloneForge.
+              3. Doble clic en "Authentication".
+              4. "Anonymous Authentication" -> clic derecho -> Enable.
+              5. Si aparece "Windows Authentication" como Enabled, deshabilitala.
 
 PROBLEMA: Error 403 Forbidden al abrir el sitio
-  CAUSA   : El Application Pool no tiene permisos de lectura sobre dist\.
+  CAUSA   : IIS_IUSRS / el Application Pool no tienen permisos de lectura
+            sobre la carpeta del sitio.
   SOLUCIÓN: Corre en PowerShell (admin):
-              icacls "C:\...\frontend\dist" /grant "IIS AppPool\CloneForge:(OI)(CI)RX" /T
+              icacls "C:\inetpub\CloneForge" /grant "IIS_IUSRS:(OI)(CI)RX" /T
+              icacls "C:\inetpub\CloneForge" /grant "IIS AppPool\CloneForge:(OI)(CI)RX" /T
 
 PROBLEMA: Al recargar una página (F5) aparece Error 404
-  CAUSA   : URL Rewrite Module no está instalado o el web.config no está en dist\.
+  CAUSA   : URL Rewrite Module no está instalado o el web.config no está
+            en la carpeta del sitio (C:\inetpub\CloneForge).
   SOLUCIÓN:
-    1. Verifica que existe frontend\dist\web.config (debe generarse en el build).
+    1. Verifica que existe C:\inetpub\CloneForge\web.config (se copia desde
+       frontend\dist\ -- que a su vez lo genera el build a partir de
+       frontend\public\web.config).
     2. Instala URL Rewrite Module (sección 1.3).
 
-PROBLEMA: El puerto 8080 ya está ocupado
-  CAUSA   : Otro proceso usa el puerto 8080 (o el puerto configurado).
+PROBLEMA: El navegador no encuentra "cloneforge.local" (ERR_NAME_NOT_RESOLVED)
+  CAUSA   : Falta la entrada en el archivo hosts, o el navegador cacheo el DNS.
+  SOLUCIÓN: Verifica que exista la linea en:
+              C:\Windows\System32\drivers\etc\hosts
+                127.0.0.1    cloneforge.local
+            Si ya existe, limpia la cache DNS: ipconfig /flushdns
+
+PROBLEMA: El puerto 80 ya está ocupado
+  CAUSA   : Otro sitio o proceso usa el puerto 80 sin un Host Header que lo
+            distinga, o un servicio externo (otro servidor web) lo ocupa.
   SOLUCIÓN: Despliega en un puerto alternativo:
               .\deploy.ps1 -Port 9090
             O detén el proceso que usa el puerto:
-              netstat -ano | findstr :8080
+              netstat -ano | findstr :80
               taskkill /PID <PID> /F
 
 PROBLEMA: "ECONNREFUSED" en los logs del backend
@@ -318,7 +371,7 @@ Cuando haya nuevas versiones del proyecto:
  PARTE 7 – ESTRUCTURA DE ARCHIVOS RELEVANTES
 ════════════════════════════════════════════════════════════════════════════════
 
-CloneForge\
+CloneForge\                 (carpeta del proyecto, p.ej. bajo Documents\)
 ├── deploy.ps1              ← Script de despliegue (este script)
 ├── start-backend.bat       ← Inicio manual del backend (alternativa a PM2)
 ├── INSTALACION.txt         ← Este documento
@@ -332,9 +385,15 @@ CloneForge\
     │   └── web.config      ← Configuración IIS (se copia a dist\ en el build)
     ├── dist\               ← Generado por "npm run build" (no está en git)
     │   ├── index.html
-    │   ├── web.config      ← Copia del anterior, sirve la SPA en IIS
+    │   ├── web.config      ← Copia del anterior
     │   └── assets\
     └── src\                ← Código fuente del frontend
+
+C:\inetpub\CloneForge\      (carpeta de despliegue -- IIS apunta AQUÍ, no a
+                              frontend\dist\ dentro del proyecto)
+├── index.html              ← Copiado desde frontend\dist\ por deploy.ps1
+├── web.config               en cada ejecución del script
+└── assets\
 
 
 ════════════════════════════════════════════════════════════════════════════════
