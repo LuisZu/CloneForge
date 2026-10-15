@@ -249,6 +249,19 @@ PROBLEMA: La página carga pero al hacer cualquier acción aparece "Network Erro
   CAUSA   : El proxy /api no está funcionando. ARR no está configurado.
   SOLUCIÓN: Revisa la sección 1.4. Asegúrate de que "Enable proxy" esté activo.
 
+PROBLEMA: Error 401 al abrir el sitio (pagina "no esta disponible")
+  CAUSA   : La autenticacion anonima del sitio esta deshabilitada, o el
+            servidor exige Windows Authentication (comun en servidores
+            unidos a un dominio con politicas de seguridad corporativas).
+            El error ocurre al cargar la pagina misma, antes de llegar al
+            proxy /api, por lo que NO es un problema de ARR.
+  SOLUCION: Vuelve a correr deploy.ps1 (ya fuerza autenticacion anonima a
+            nivel del sitio en cada ejecucion). Si prefieres hacerlo a mano:
+              1. Abre IIS Manager -> selecciona el sitio CloneForge.
+              2. Doble clic en "Authentication".
+              3. "Anonymous Authentication" -> clic derecho -> Enable.
+              4. Si aparece "Windows Authentication" como Enabled, deshabilitala.
+
 PROBLEMA: Error 403 Forbidden al abrir el sitio
   CAUSA   : El Application Pool no tiene permisos de lectura sobre dist\.
   SOLUCIÓN: Corre en PowerShell (admin):

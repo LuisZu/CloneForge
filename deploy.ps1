@@ -56,7 +56,7 @@ try {
     Write-Ok "IIS activo."
 } catch {
     Write-Warn "El servicio W3SVC no se encontro. Habilitando IIS..."
-    Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole, IIS-WebServer, IIS-CommonHttpFeatures, IIS-StaticContent -NoRestart | Out-Null
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole, IIS-WebServer, IIS-CommonHttpFeatures, IIS-StaticContent, IIS-DefaultDocument -NoRestart | Out-Null
     Start-Service W3SVC
     Write-Ok "IIS habilitado."
 }
@@ -160,13 +160,43 @@ if (Test-Path "IIS:\Sites\$SiteName") {
     Write-Ok "Sitio '$SiteName' creado -> $distPath  (puerto $Port)"
 }
 
-$acl  = Get-Acl $distPath
-$rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+$acl      = Get-Acl $distPath
+$poolRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
     "IIS AppPool\$poolName", "ReadAndExecute", "ContainerInherit,ObjectInherit", "None", "Allow"
 )
-$acl.SetAccessRule($rule)
+$iusrRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+    "IIS_IUSRS", "ReadAndExecute", "ContainerInherit,ObjectInherit", "None", "Allow"
+)
+$acl.SetAccessRule($poolRule)
+$acl.SetAccessRule($iusrRule)
 Set-Acl $distPath $acl
-Write-Ok "Permisos de lectura asignados al pool '$poolName' sobre dist\"
+Write-Ok "Permisos de lectura asignados a 'IIS AppPool\$poolName' e 'IIS_IUSRS' sobre dist\"
+
+# --- 9b. Forzar autenticacion anonima en el sitio ----------------------------
+# Un sitio nuevo hereda la configuracion de autenticacion del servidor. En
+# muchos servidores (sobre todo unidos a un dominio, con politicas de
+# seguridad corporativas) la autenticacion anonima viene deshabilitada por
+# defecto o se exige Windows Authentication -> el navegador recibe un 401 al
+# cargar la pagina, antes incluso de llegar al proxy /api. Se fuerza aqui a
+# nivel de sitio (no de servidor) para no afectar otros sitios en el mismo IIS.
+Write-Step "Forzando autenticacion anonima en el sitio..."
+try {
+    Set-WebConfigurationProperty -pspath "IIS:\Sites\$SiteName" `
+        -filter "system.webServer/security/authentication/anonymousAuthentication" `
+        -name "enabled" -value "True"
+    Write-Ok "Autenticacion anonima habilitada para '$SiteName'."
+} catch {
+    Write-Warn "No se pudo habilitar autenticacion anonima automaticamente: $_"
+    Write-Warn "Hazlo manualmente en IIS Manager -> sitio -> Authentication -> Anonymous Authentication -> Enable."
+}
+try {
+    Set-WebConfigurationProperty -pspath "IIS:\Sites\$SiteName" `
+        -filter "system.webServer/security/authentication/windowsAuthentication" `
+        -name "enabled" -value "False" -ErrorAction Stop | Out-Null
+} catch {
+    # El modulo de Windows Authentication puede no estar instalado en este
+    # servidor; si la seccion no existe no hay nada que deshabilitar.
+}
 
 # --- 10. Configurar PM2 para el backend -------------------------------------
 Write-Step "Configurando PM2 para el backend..."
