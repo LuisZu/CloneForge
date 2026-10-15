@@ -345,6 +345,25 @@ PROBLEMA: pm2 no reconocido como comando
   SOLUCIÓN: Cierra y vuelve a abrir PowerShell/CMD. O usa la ruta completa:
               %APPDATA%\npm\pm2.cmd
 
+PROBLEMA: "pm2 list" no muestra el proceso cloneforge-backend (tabla vacía),
+          aunque deploy.ps1 terminó sin errores
+  CAUSA   : PM2 en Windows guarda su estado (daemon + lista de procesos) en
+            el perfil de la cuenta que lo arrancó: %USERPROFILE%\.pm2. Si
+            deploy.ps1 se corrió "como administrador" usando OTRA cuenta
+            distinta a la que estás usando ahora, ese PM2 vive en el perfil
+            de esa otra cuenta y es invisible desde aquí -- no es que el
+            backend se haya caído, simplemente no existe en ESTE perfil.
+  SOLUCIÓN: Arranca el backend desde la cuenta con la que normalmente vas a
+            trabajar (y que vas a usar para monitorearlo despues):
+              cd backend
+              pm2 start src/index.js --name cloneforge-backend
+              pm2 save
+            IMPORTANTE: usa siempre la MISMA cuenta de Windows para todo lo
+            relacionado a PM2 (deploy.ps1, pm2 start/stop/restart/logs). Si
+            necesitas que el backend sobreviva sin depender de ninguna
+            cuenta/sesion en particular (recomendado para un servidor real),
+            considera migrar PM2 a correr como Servicio de Windows.
+
 PROBLEMA: El script deploy.ps1 falla con "no se puede ejecutar scripts"
   CAUSA   : PowerShell tiene restricción de ejecución.
   SOLUCIÓN: Ejecuta antes:
