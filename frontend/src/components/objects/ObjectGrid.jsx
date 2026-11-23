@@ -236,7 +236,10 @@ export default function ObjectGrid() {
         onClone={() => clone(() => gridRef.current?.api?.deselectAll())}
         cloneLoading={cloneLoading}
         onCloneDataOnly={() => cloneDataOnly(() => gridRef.current?.api?.deselectAll())}
-        onExport={() => exportScript((sql) => setExportSql(sql))}
+        onExport={() => exportScript((sql) => {
+          setExportSql(sql);
+          gridRef.current?.api?.deselectAll();
+        })}
         exportLoading={exportLoading}
         destConnected={destConnected}
         onRefresh={refresh}
